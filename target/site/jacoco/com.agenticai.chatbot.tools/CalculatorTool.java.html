@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CalculatorTool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.tools</a> &gt; <span class="el_source">CalculatorTool.java</span></div><h1>CalculatorTool.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.tools;
+
+import com.agenticai.chatbot.model.ChatModels.CalculatorResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
+import net.objecthunter.exp4j.Expression;
+import net.objecthunter.exp4j.ExpressionBuilder;
+
+/**
+ * Agentic tool: safe arithmetic calculator.
+ *
+ * &lt;p&gt;Claude calls this when the user asks for calculations. Using a script
+ * engine provides basic expression evaluation. In production, consider
+ * a dedicated math library (e.g., exp4j, JEval) for richer support
+ * and stricter sandboxing.
+ */
+<span class="fc" id="L20">@Slf4j</span>
+@Component
+<span class="fc" id="L22">public class CalculatorTool {</span>
+
+    /**
+     * Evaluates a mathematical expression and returns the numeric result.
+     *
+     * @param expression A mathematical expression, e.g. &quot;(150 * 0.18) + 25&quot;.
+     */
+    @Tool(name = &quot;calculate&quot;,
+            description = &quot;Evaluate arithmetic expressions such as addition, subtraction, &quot;
+                    + &quot;multiplication, division, percentages, and parenthesised expressions. &quot;
+                    + &quot;Example: '(150 * 0.18) + 25'&quot;)
+    public CalculatorResponse calculate(
+            @ToolParam(description = &quot;A valid arithmetic expression, e.g. '(100 + 50) * 0.15'&quot;)
+            String expression) {
+
+<span class="fc" id="L37">        log.info(&quot;[TOOL CALL] calculate → expression={}&quot;, expression);</span>
+
+        // Fail early for null, empty, or whitespace-only expressions
+<span class="fc bfc" id="L40" title="All 4 branches covered.">        if (expression == null || expression.isBlank()) {</span>
+<span class="fc" id="L41">            return new CalculatorResponse(expression, Double.NaN);</span>
+        }
+
+        // Whitelist guard — only allow digits, arithmetic operators, spaces, dots, parentheses, and exponents
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (!expression.matches(&quot;[0-9+\\-*/%. ()^]+&quot;)) {</span>
+<span class="fc" id="L46">            return new CalculatorResponse(expression, Double.NaN);</span>
+        }
+
+        try {
+            // Using exp4j to evaluate the mathematical expression safely
+<span class="fc" id="L51">            Expression expr = new ExpressionBuilder(expression).build();</span>
+<span class="fc" id="L52">            double result = expr.evaluate();</span>
+
+            // Round to 6 decimal places as required by specifications
+<span class="fc" id="L55">            result = Math.round(result * 1_000_000.0) / 1_000_000.0;</span>
+<span class="fc" id="L56">            return new CalculatorResponse(expression, result);</span>
+
+<span class="nc" id="L58">        } catch (Exception e) {</span>
+<span class="nc" id="L59">            log.warn(&quot;Calculator evaluation failed for expression '{}': {}&quot;, expression, e.getMessage());</span>
+<span class="nc" id="L60">            return new CalculatorResponse(expression, Double.NaN);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

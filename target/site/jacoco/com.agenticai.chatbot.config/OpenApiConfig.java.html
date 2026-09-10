@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenApiConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.config</a> &gt; <span class="el_source">OpenApiConfig.java</span></div><h1>OpenApiConfig.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.config;
+
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
+import io.swagger.v3.oas.annotations.info.Contact;
+import io.swagger.v3.oas.annotations.info.Info;
+import io.swagger.v3.oas.annotations.info.License;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import io.swagger.v3.oas.annotations.security.SecuritySchemes;
+import io.swagger.v3.oas.annotations.servers.Server;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.examples.Example;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.tags.Tag;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+
+/**
+ * SpringDoc / Swagger UI configuration for the Spring AI Chatbot API.
+ * &lt;h3&gt;Features&lt;/h3&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;JWT Bearer authentication scheme — shows &quot;Authorize 🔒&quot; button in Swagger UI.&lt;/li&gt;
+ *   &lt;li&gt;API key (X-API-KEY) as a secondary auth option.&lt;/li&gt;
+ *   &lt;li&gt;Global security requirement — all endpoints show the lock icon.&lt;/li&gt;
+ *   &lt;li&gt;Rich API metadata (title, description, contact, license, version).&lt;/li&gt;
+ *   &lt;li&gt;Server definitions for local and production environments.&lt;/li&gt;
+ *   &lt;li&gt;Tag groupings matching the controller structure.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;h3&gt;Access URLs&lt;/h3&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;Swagger UI : {@code http://localhost:8080/swagger-ui.html}&lt;/li&gt;
+ *   &lt;li&gt;OpenAPI JSON: {@code http://localhost:8080/v3/api-docs}&lt;/li&gt;
+ *   &lt;li&gt;OpenAPI YAML: {@code http://localhost:8080/v3/api-docs.yaml}&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;h3&gt;How to authenticate in Swagger UI&lt;/h3&gt;
+ * &lt;ol&gt;
+ *   &lt;li&gt;Call {@code POST /api/auth/login} with demo credentials.&lt;/li&gt;
+ *   &lt;li&gt;Copy the {@code accessToken} from the response.&lt;/li&gt;
+ *   &lt;li&gt;Click the &quot;Authorize 🔒&quot; button at the top of the page.&lt;/li&gt;
+ *   &lt;li&gt;Paste the token in the {@code BearerAuth} field (without &quot;Bearer &quot; prefix).&lt;/li&gt;
+ *   &lt;li&gt;Click &quot;Authorize&quot; — all subsequent requests will include the header.&lt;/li&gt;
+ * &lt;/ol&gt;
+ */
+@Configuration
+// ── Class-level annotations register security schemes globally ────────────
+@OpenAPIDefinition(
+        info = @Info(
+                title       = &quot;🤖 Spring AI Agentic Chatbot API&quot;,
+                version     = &quot;1.0.0&quot;,
+                description = &quot;&quot;&quot;
+                **Spring Boot 4 + Spring AI 2.0 Agentic Chatbot**
+                
+                A production-ready REST API exposing an AI-powered chatbot backed by
+                **Anthropic Claude** via Spring AI. The agent autonomously selects tools
+                (weather, order tracking, calculator, product info) based on the user's message.
+                
+                ---
+                
+                ### Authentication
+                All `/api/chat/**` endpoints require a valid **JWT Bearer token**.
+                
+                1. Register a user: `POST /api/auth/register`
+                2. Login to get a token: `POST /api/auth/login`
+                3. Click **Authorize 🔒** above and paste the `accessToken`
+                
+                ### Demo Credentials
+                | Username | Password    | Role        |
+                |----------|-------------|-------------|
+                | admin    | Admin@1234  | ADMIN+USER  |
+                | user     | User@1234   | USER        |
+                
+                ### Agentic Tools Available
+                | Tool             | Trigger Example                         |
+                |------------------|-----------------------------------------|
+                | `get_weather`    | &quot;What is the weather in London?&quot;        |
+                | `track_order`    | &quot;Track my order ORD-1002&quot;               |
+                | `calculate`      | &quot;What is 15% tip on $128.50?&quot;           |
+                | `get_product_info` | &quot;Tell me about PROD-001&quot;              |
+                &quot;&quot;&quot;,
+                contact = @Contact(
+                        name  = &quot;API Support&quot;,
+                        email = &quot;support@agenticai.com&quot;,
+                        url   = &quot;https://github.com/souptiktat/spring-ai-chatbot&quot;
+                ),
+                license = @License(
+                        name = &quot;Apache 2.0&quot;,
+                        url  = &quot;https://www.apache.org/licenses/LICENSE-2.0&quot;
+                )
+        ),
+        servers = {
+                @Server(url = &quot;http://localhost:8080&quot;,       description = &quot;Local Development&quot;),
+                @Server(url = &quot;https://api.agenticai.com&quot;,   description = &quot;Production&quot;)
+        },
+        // Global security requirement — all operations require BearerAuth UNLESS
+        // overridden at the operation level with @SecurityRequirement(name = &quot;&quot;)
+        security = {
+                @SecurityRequirement(name = &quot;BearerAuth&quot;),
+                @SecurityRequirement(name = &quot;ApiKeyAuth&quot;)
+        }
+)
+
+// ── Security scheme definitions ───────────────────────────────────────────
+@SecuritySchemes({
+
+        @SecurityScheme(
+                name        = &quot;BearerAuth&quot;,
+                type        = SecuritySchemeType.HTTP,
+                scheme      = &quot;bearer&quot;,
+                bearerFormat = &quot;JWT&quot;,
+                description = &quot;&quot;&quot;
+                **JWT Bearer Token Authentication**
+                
+                Obtain a token from `POST /api/auth/login`, then paste it here
+                (without the &quot;Bearer &quot; prefix). The UI will add the header automatically.
+                
+                Token format: `eyJhbGciOiJIUzI1NiJ9...`
+                &quot;&quot;&quot;
+        ),
+
+        @SecurityScheme(
+                name        = &quot;ApiKeyAuth&quot;,
+                type        = SecuritySchemeType.APIKEY,
+                in          = SecuritySchemeIn.HEADER,
+                paramName   = &quot;X-API-KEY&quot;,
+                description = &quot;Optional API key for machine-to-machine access (future use).&quot;
+        )
+})
+<span class="fc" id="L135">public class OpenApiConfig {</span>
+
+    /**
+     * Programmatic OpenAPI bean — adds global response examples and tag descriptions.
+     *
+     * &lt;p&gt;This complements the annotation-based config above by adding:
+     * &lt;ul&gt;
+     *   &lt;li&gt;Detailed tag descriptions with emoji for better readability in Swagger UI&lt;/li&gt;
+     *   &lt;li&gt;Global 401/403/429/500 response examples reused across operations&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    @Bean
+    public OpenAPI customOpenAPI() {
+
+        // ── Reusable error response schemas ───────────────────────────────
+<span class="fc" id="L150">        var errorSchema = new Schema&lt;&gt;()</span>
+<span class="fc" id="L151">                .type(&quot;object&quot;)</span>
+<span class="fc" id="L152">                .addProperty(&quot;success&quot;,   new Schema&lt;&gt;().type(&quot;boolean&quot;).example(false))</span>
+<span class="fc" id="L153">                .addProperty(&quot;status&quot;,    new Schema&lt;&gt;().type(&quot;integer&quot;).example(401))</span>
+<span class="fc" id="L154">                .addProperty(&quot;message&quot;,   new Schema&lt;&gt;().type(&quot;string&quot;).example(&quot;Unauthorized&quot;))</span>
+<span class="fc" id="L155">                .addProperty(&quot;error&quot;,     new Schema&lt;&gt;().type(&quot;object&quot;)</span>
+<span class="fc" id="L156">                        .addProperty(&quot;code&quot;,   new Schema&lt;&gt;().type(&quot;string&quot;).example(&quot;UNAUTHORIZED&quot;))</span>
+<span class="fc" id="L157">                        .addProperty(&quot;detail&quot;, new Schema&lt;&gt;().type(&quot;string&quot;)))</span>
+<span class="fc" id="L158">                .addProperty(&quot;path&quot;,      new Schema&lt;&gt;().type(&quot;string&quot;).example(&quot;/api/chat&quot;))</span>
+<span class="fc" id="L159">                .addProperty(&quot;timestamp&quot;, new Schema&lt;&gt;().type(&quot;string&quot;).format(&quot;date-time&quot;));</span>
+
+<span class="fc" id="L161">        var unauthorizedExample = new Example()</span>
+<span class="fc" id="L162">                .value(&quot;&quot;&quot;</span>
+                        {
+                          &quot;success&quot;: false,
+                          &quot;status&quot;: 401,
+                          &quot;message&quot;: &quot;Unauthorized&quot;,
+                          &quot;error&quot;: {
+                            &quot;code&quot;: &quot;UNAUTHORIZED&quot;,
+                            &quot;detail&quot;: &quot;Missing or invalid JWT token. Include 'Authorization: Bearer &lt;token&gt;' header.&quot;
+                          },
+                          &quot;path&quot;: &quot;/api/chat&quot;,
+                          &quot;timestamp&quot;: &quot;2026-05-31T10:00:00Z&quot;
+                        }
+                        &quot;&quot;&quot;);
+
+<span class="fc" id="L176">        var forbiddenExample = new Example()</span>
+<span class="fc" id="L177">                .value(&quot;&quot;&quot;</span>
+                        {
+                          &quot;success&quot;: false,
+                          &quot;status&quot;: 403,
+                          &quot;message&quot;: &quot;Forbidden&quot;,
+                          &quot;error&quot;: {
+                            &quot;code&quot;: &quot;FORBIDDEN&quot;,
+                            &quot;detail&quot;: &quot;You do not have permission to access this resource.&quot;
+                          },
+                          &quot;path&quot;: &quot;/actuator/env&quot;,
+                          &quot;timestamp&quot;: &quot;2026-05-31T10:00:00Z&quot;
+                        }
+                        &quot;&quot;&quot;);
+
+<span class="fc" id="L191">        var rateLimitExample = new Example()</span>
+<span class="fc" id="L192">                .value(&quot;&quot;&quot;</span>
+                        {
+                          &quot;success&quot;: false,
+                          &quot;status&quot;: 429,
+                          &quot;message&quot;: &quot;Too Many Requests&quot;,
+                          &quot;error&quot;: {
+                            &quot;code&quot;: &quot;RATE_LIMITED&quot;,
+                            &quot;detail&quot;: &quot;Rate limit exceeded. Please wait before sending another message.&quot;
+                          },
+                          &quot;path&quot;: &quot;/api/chat&quot;,
+                          &quot;timestamp&quot;: &quot;2026-05-31T10:00:00Z&quot;
+                        }
+                        &quot;&quot;&quot;);
+
+        // ── Reusable API responses ─────────────────────────────────────────
+<span class="fc" id="L207">        var unauthorizedResponse = new ApiResponse()</span>
+<span class="fc" id="L208">                .description(&quot;Unauthorized — missing or invalid JWT token&quot;)</span>
+<span class="fc" id="L209">                .content(new Content().addMediaType(</span>
+                        &quot;application/json&quot;,
+<span class="fc" id="L211">                        new MediaType().schema(errorSchema)</span>
+<span class="fc" id="L212">                                .addExamples(&quot;example&quot;, unauthorizedExample)));</span>
+
+<span class="fc" id="L214">        var forbiddenResponse = new ApiResponse()</span>
+<span class="fc" id="L215">                .description(&quot;Forbidden — authenticated but insufficient role&quot;)</span>
+<span class="fc" id="L216">                .content(new Content().addMediaType(</span>
+                        &quot;application/json&quot;,
+<span class="fc" id="L218">                        new MediaType().schema(errorSchema)</span>
+<span class="fc" id="L219">                                .addExamples(&quot;example&quot;, forbiddenExample)));</span>
+
+<span class="fc" id="L221">        var rateLimitResponse = new ApiResponse()</span>
+<span class="fc" id="L222">                .description(&quot;Too Many Requests — Anthropic rate limit&quot;)</span>
+<span class="fc" id="L223">                .content(new Content().addMediaType(</span>
+                        &quot;application/json&quot;,
+<span class="fc" id="L225">                        new MediaType().schema(errorSchema)</span>
+<span class="fc" id="L226">                                .addExamples(&quot;example&quot;, rateLimitExample)));</span>
+
+        // ── Tags with full descriptions ────────────────────────────────────
+<span class="fc" id="L229">        var authTag = new Tag()</span>
+<span class="fc" id="L230">                .name(&quot;Authentication&quot;)</span>
+<span class="fc" id="L231">                .description(&quot;&quot;&quot;</span>
+                        **JWT Authentication endpoints.**
+                        Register, login, refresh tokens, and view your profile.
+                        Login endpoints are public — no token required.
+                        &quot;&quot;&quot;);
+
+<span class="fc" id="L237">        var chatTag = new Tag()</span>
+<span class="fc" id="L238">                .name(&quot;Chat&quot;)</span>
+<span class="fc" id="L239">                .description(&quot;&quot;&quot;</span>
+                        **Agentic AI Chat endpoints.** 🤖
+                        Send messages to Claude. The model autonomously calls tools
+                        (weather, orders, calculator, products) and returns a synthesised reply.
+                        Requires `ROLE_USER` or `ROLE_ADMIN`.
+                        
+                        Supports both standard JSON responses and SSE streaming.
+                        &quot;&quot;&quot;);
+
+<span class="fc" id="L248">        var healthTag = new Tag()</span>
+<span class="fc" id="L249">                .name(&quot;Health&quot;)</span>
+<span class="fc" id="L250">                .description(&quot;Application health check — public endpoint, no auth required.&quot;);</span>
+
+<span class="fc" id="L252">        return new OpenAPI()</span>
+<span class="fc" id="L253">                .tags(List.of(authTag, chatTag, healthTag))</span>
+<span class="fc" id="L254">                .components(new io.swagger.v3.oas.models.Components()</span>
+<span class="fc" id="L255">                        .addResponses(&quot;Unauthorized&quot;,  unauthorizedResponse)</span>
+<span class="fc" id="L256">                        .addResponses(&quot;Forbidden&quot;,     forbiddenResponse)</span>
+<span class="fc" id="L257">                        .addResponses(&quot;RateLimited&quot;,   rateLimitResponse));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

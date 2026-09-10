@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.advisor</a> &gt; <span class="el_source">GlobalExceptionHandler.java</span></div><h1>GlobalExceptionHandler.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.advisor;
+
+import com.agenticai.chatbot.model.ApiResponse;
+import com.agenticai.chatbot.model.ChatException.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Global REST exception handler.
+ *
+ * &lt;p&gt;Converts every typed exception (and Spring MVC's built-in ones)
+ * into a consistent {@link ApiResponse} JSON body with the correct HTTP status.
+ *
+ * &lt;pre&gt;
+ * Exception Type                      → HTTP Status
+ * ────────────────────────────────────────────────────────
+ * MethodArgumentNotValidException     → 400 Bad Request
+ * HttpMessageNotReadableException     → 400 Bad Request  (malformed JSON)
+ * BadRequestException                 → 400 Bad Request
+ * NoHandlerFoundException             → 404 Not Found
+ * HttpRequestMethodNotSupportedException → 405 Method Not Allowed
+ * HttpMediaTypeNotSupportedException  → 415 Unsupported Media Type
+ * UnprocessableException              → 422 Unprocessable Entity
+ * RateLimitException                  → 429 Too Many Requests
+ * AiApiException                      → 502 Bad Gateway
+ * ServiceUnavailableException         → 503 Service Unavailable
+ * AiTimeoutException                  → 504 Gateway Timeout
+ * ChatBaseException                   → 500 Internal Server Error
+ * Exception (catch-all)               → 500 Internal Server Error
+ * &lt;/pre&gt;
+ */
+<span class="fc" id="L46">@Slf4j</span>
+@RestControllerAdvice
+<span class="fc" id="L48">public class GlobalExceptionHandler {</span>
+
+    // ── 400 Bad Request ────────────────────────────────────────────────────
+
+    /** Bean validation failed (e.g. @NotBlank, @Size). */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Map&lt;String, String&gt;&gt;&gt; handleValidation(
+            MethodArgumentNotValidException ex, HttpServletRequest req) {
+
+<span class="fc" id="L57">        Map&lt;String, String&gt; fieldErrors = ex.getBindingResult().getAllErrors().stream()</span>
+<span class="fc" id="L58">                .filter(e -&gt; e instanceof FieldError)</span>
+<span class="fc" id="L59">                .map(e -&gt; (FieldError) e)</span>
+<span class="fc" id="L60">                .collect(Collectors.toMap(FieldError::getField,</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">                        e -&gt; e.getDefaultMessage() != null</span>
+<span class="fc" id="L62">                                ? e.getDefaultMessage() : &quot;invalid value&quot;));</span>
+
+<span class="fc" id="L64">        log.warn(&quot;Validation failed on {}: {}&quot;, req.getRequestURI(), fieldErrors);</span>
+
+<span class="fc" id="L66">        var body = new ApiResponse&lt;&gt;(</span>
+                false, 400, &quot;Validation Failed&quot;,
+                fieldErrors,                               // field → error message map in data
+                new ApiResponse.ApiError(&quot;VALIDATION_ERROR&quot;,
+                        &quot;One or more request fields failed validation.&quot;),
+<span class="fc" id="L71">                req.getRequestURI(), java.time.Instant.now());</span>
+
+<span class="fc" id="L73">        return ResponseEntity.badRequest().body(body);</span>
+    }
+
+    /** Malformed JSON body (cannot deserialise). */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleMalformedJson(
+            HttpMessageNotReadableException ex, HttpServletRequest req) {
+
+<span class="fc" id="L81">        log.warn(&quot;Malformed JSON on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L82">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L83">                .body(ApiResponse.badRequest(</span>
+                        &quot;Request body is malformed or missing. Ensure Content-Type is application/json &quot;
+                                + &quot;and the body is valid JSON.&quot;,
+<span class="fc" id="L86">                        req.getRequestURI()));</span>
+    }
+
+    /** Service-layer semantic 400. */
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleBadRequest(
+            BadRequestException ex, HttpServletRequest req) {
+
+<span class="fc" id="L94">        log.warn(&quot;Bad request on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L95">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L96">                .body(ApiResponse.badRequest(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 404 Not Found ─────────────────────────────────────────────────────
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleNotFound(
+            NoHandlerFoundException ex, HttpServletRequest req) {
+
+<span class="fc" id="L105">        log.warn(&quot;No handler found: {} {}&quot;, ex.getHttpMethod(), req.getRequestURI());</span>
+<span class="fc" id="L106">        return ResponseEntity.status(HttpStatus.NOT_FOUND)</span>
+<span class="fc" id="L107">                .body(ApiResponse.notFound(</span>
+<span class="fc" id="L108">                        &quot;No endpoint found for &quot; + ex.getHttpMethod() + &quot; &quot; + req.getRequestURI(),</span>
+<span class="fc" id="L109">                        req.getRequestURI()));</span>
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleResourceNotFound(
+            ResourceNotFoundException ex, HttpServletRequest req) {
+
+<span class="fc" id="L116">        log.warn(&quot;Resource not found on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L117">        return ResponseEntity.status(HttpStatus.NOT_FOUND)</span>
+<span class="fc" id="L118">                .body(ApiResponse.notFound(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 405 Method Not Allowed ─────────────────────────────────────────────
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleMethodNotAllowed(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
+
+<span class="fc" id="L127">        String detail = ex.getMethod() + &quot; is not supported on &quot; + req.getRequestURI()</span>
+<span class="fc" id="L128">                + &quot;. Supported methods: &quot; + ex.getSupportedHttpMethods();</span>
+<span class="fc" id="L129">        log.warn(&quot;Method not allowed: {}&quot;, detail);</span>
+<span class="fc" id="L130">        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)</span>
+<span class="fc" id="L131">                .body(ApiResponse.methodNotAllowed(detail, req.getRequestURI()));</span>
+    }
+
+    // ── 415 Unsupported Media Type ─────────────────────────────────────────
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex, HttpServletRequest req) {
+
+<span class="fc" id="L140">        String detail = &quot;Content-Type '&quot; + ex.getContentType() + &quot;' is not supported. &quot;</span>
+                + &quot;Use 'application/json'.&quot;;
+<span class="fc" id="L142">        log.warn(&quot;Unsupported media type on {}: {}&quot;, req.getRequestURI(), detail);</span>
+<span class="fc" id="L143">        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)</span>
+<span class="fc" id="L144">                .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L145">                .body(new ApiResponse&lt;&gt;(false, 415, &quot;Unsupported Media Type&quot;,</span>
+                        null,
+                        new ApiResponse.ApiError(&quot;UNSUPPORTED_MEDIA_TYPE&quot;, detail),
+<span class="fc" id="L148">                        req.getRequestURI(), java.time.Instant.now()));</span>
+    }
+
+    // ── 422 Unprocessable Entity ───────────────────────────────────────────
+
+    @ExceptionHandler(UnprocessableException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleUnprocessable(
+            UnprocessableException ex, HttpServletRequest req) {
+
+<span class="fc" id="L157">        log.warn(&quot;Unprocessable entity on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L158">        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)</span>
+<span class="fc" id="L159">                .body(ApiResponse.unprocessable(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 429 Too Many Requests ──────────────────────────────────────────────
+
+    @ExceptionHandler(RateLimitException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleRateLimit(
+            RateLimitException ex, HttpServletRequest req) {
+
+<span class="fc" id="L168">        log.warn(&quot;Rate limit on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L169">        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)</span>
+<span class="fc" id="L170">                .header(&quot;Retry-After&quot;, &quot;60&quot;)</span>
+<span class="fc" id="L171">                .body(ApiResponse.tooManyRequests(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 500 Internal Server Error ──────────────────────────────────────────
+
+    @ExceptionHandler(ChatBaseException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleChatBase(
+            ChatBaseException ex, HttpServletRequest req) {
+
+<span class="fc" id="L180">        log.error(&quot;Chat error on {}: {}&quot;, req.getRequestURI(), ex.getMessage(), ex);</span>
+<span class="fc" id="L181">        return ResponseEntity.internalServerError()</span>
+<span class="fc" id="L182">                .body(ApiResponse.internalError(</span>
+                        &quot;An internal error occurred. Please try again.&quot;,
+<span class="fc" id="L184">                        req.getRequestURI()));</span>
+    }
+
+    // ── 502 Bad Gateway ────────────────────────────────────────────────────
+
+    @ExceptionHandler(AiApiException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleAiApi(
+            AiApiException ex, HttpServletRequest req) {
+
+<span class="fc" id="L193">        log.error(&quot;AI API error on {}: {}&quot;, req.getRequestURI(), ex.getMessage(), ex);</span>
+<span class="fc" id="L194">        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)</span>
+<span class="fc" id="L195">                .body(ApiResponse.badGateway(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 503 Service Unavailable ────────────────────────────────────────────
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleServiceUnavailable(
+            ServiceUnavailableException ex, HttpServletRequest req) {
+
+<span class="fc" id="L204">        log.error(&quot;Service unavailable on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L205">        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)</span>
+<span class="fc" id="L206">                .header(&quot;Retry-After&quot;, &quot;30&quot;)</span>
+<span class="fc" id="L207">                .body(ApiResponse.serviceUnavailable(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── 504 Gateway Timeout ────────────────────────────────────────────────
+
+    @ExceptionHandler(AiTimeoutException.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleAiTimeout(
+            AiTimeoutException ex, HttpServletRequest req) {
+
+<span class="fc" id="L216">        log.error(&quot;AI timeout on {}: {}&quot;, req.getRequestURI(), ex.getMessage());</span>
+<span class="fc" id="L217">        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)</span>
+<span class="fc" id="L218">                .body(ApiResponse.gatewayTimeout(ex.getMessage(), req.getRequestURI()));</span>
+    }
+
+    // ── Catch-all 500 ─────────────────────────────────────────────────────
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;ApiResponse&lt;Void&gt;&gt; handleGeneric(
+            Exception ex, HttpServletRequest req) {
+
+<span class="fc" id="L227">        log.error(&quot;Unhandled exception on {}: {}&quot;, req.getRequestURI(), ex.getMessage(), ex);</span>
+<span class="fc" id="L228">        return ResponseEntity.internalServerError()</span>
+<span class="fc" id="L229">                .body(ApiResponse.internalError(</span>
+                        &quot;An unexpected error occurred. Please try again.&quot;,
+<span class="fc" id="L231">                        req.getRequestURI()));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

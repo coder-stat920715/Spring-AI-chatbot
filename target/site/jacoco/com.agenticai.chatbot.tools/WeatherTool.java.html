@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WeatherTool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.tools</a> &gt; <span class="el_source">WeatherTool.java</span></div><h1>WeatherTool.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.tools;
+
+import com.agenticai.chatbot.model.ChatModels.WeatherResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.Random;
+
+/**
+ * Agentic tool: weather lookup.
+ *
+ * &lt;p&gt;Claude will call this tool automatically whenever the user asks about
+ * weather. In production, replace the mock data with a real API call
+ * (e.g., OpenWeatherMap, WeatherAPI).
+ *
+ * &lt;p&gt;Spring AI discovers this tool via the {@code @Tool} annotation and
+ * registers it with the Claude model. Claude sees the method name,
+ * description, and parameter descriptions — so make them descriptive.
+ */
+<span class="fc" id="L23">@Slf4j</span>
+@Component
+<span class="fc" id="L25">public class WeatherTool {</span>
+
+<span class="fc" id="L27">    private static final Random RANDOM = new Random();</span>
+
+    /** Simulated weather data per city (temperature in Celsius). */
+<span class="fc" id="L30">    private static final Map&lt;String, double[]&gt; CITY_WEATHER = Map.of(</span>
+            &quot;london&quot;,    new double[]{12.0, 15.0, 18.0},
+            &quot;new york&quot;,  new double[]{20.0, 25.0, 30.0},
+            &quot;tokyo&quot;,     new double[]{22.0, 27.0, 32.0},
+            &quot;sydney&quot;,    new double[]{18.0, 22.0, 26.0},
+            &quot;paris&quot;,     new double[]{14.0, 19.0, 24.0},
+            &quot;dubai&quot;,     new double[]{35.0, 38.0, 42.0},
+            &quot;mumbai&quot;,    new double[]{28.0, 32.0, 36.0},
+            &quot;singapore&quot;, new double[]{30.0, 33.0, 35.0}
+    );
+
+<span class="fc" id="L41">    private static final String[] CONDITIONS =</span>
+            {&quot;Sunny&quot;, &quot;Partly Cloudy&quot;, &quot;Cloudy&quot;, &quot;Light Rain&quot;, &quot;Clear&quot;};
+
+    /**
+     * Returns current weather for the specified city.
+     *
+     * @param city The city name to get weather for (e.g., &quot;London&quot;, &quot;Tokyo&quot;).
+     * @param unit Temperature unit — &quot;celsius&quot; or &quot;fahrenheit&quot;.
+     */
+    @Tool(name = &quot;get_weather&quot;,
+          description = &quot;Get the current weather conditions for any city worldwide. &quot;
+                      + &quot;Returns temperature, weather condition, humidity, and wind speed.&quot;)
+    public WeatherResponse getWeather(
+            @ToolParam(description = &quot;The city name, e.g. 'London' or 'New York'&quot;)
+            String city,
+            @ToolParam(description = &quot;Temperature unit: 'celsius' or 'fahrenheit'&quot;)
+            String unit) {
+
+<span class="fc" id="L59">        log.info(&quot;[TOOL CALL] get_weather → city={}, unit={}&quot;, city, unit);</span>
+
+<span class="fc" id="L61">        String cityKey = city.toLowerCase().trim();</span>
+<span class="fc" id="L62">        double[] temps = CITY_WEATHER.getOrDefault(cityKey, new double[]{20.0, 25.0, 30.0});</span>
+<span class="fc" id="L63">        double tempCelsius = temps[RANDOM.nextInt(temps.length)];</span>
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        double temperature = &quot;fahrenheit&quot;.equalsIgnoreCase(unit)</span>
+<span class="fc" id="L66">                ? (tempCelsius * 9.0 / 5.0) + 32.0</span>
+<span class="fc" id="L67">                : tempCelsius;</span>
+
+<span class="fc" id="L69">        String condition = CONDITIONS[RANDOM.nextInt(CONDITIONS.length)];</span>
+<span class="fc" id="L70">        int humidity = 50 + RANDOM.nextInt(40);         // 50–90%</span>
+<span class="fc" id="L71">        double windSpeed = 5 + RANDOM.nextDouble() * 25; // 5–30 km/h</span>
+
+<span class="fc" id="L73">        return new WeatherResponse(</span>
+                city,
+<span class="fc" id="L75">                Math.round(temperature * 10.0) / 10.0,</span>
+<span class="fc bfc" id="L76" title="All 4 branches covered.">                unit == null || unit.isBlank() ? &quot;celsius&quot; : unit.toLowerCase(),</span>
+                condition,
+                humidity,
+<span class="fc" id="L79">                Math.round(windSpeed * 10.0) / 10.0</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

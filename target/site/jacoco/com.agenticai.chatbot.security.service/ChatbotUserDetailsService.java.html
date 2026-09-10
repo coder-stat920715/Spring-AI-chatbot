@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatbotUserDetailsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.security.service</a> &gt; <span class="el_source">ChatbotUserDetailsService.java</span></div><h1>ChatbotUserDetailsService.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.security.service;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+/**
+ * Spring Security {@link UserDetailsService} backed by the in-memory {@link UserStore}.
+ *
+ * &lt;p&gt;Spring Security calls {@link #loadUserByUsername} when validating credentials
+ * during both form-login and JWT filter token verification.
+ *
+ * &lt;p&gt;&lt;b&gt;Production note:&lt;/b&gt; Replace the {@link UserStore} dependency with a
+ * JPA {@code UserRepository} and load the entity from the database.
+ */
+<span class="fc" id="L21">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class ChatbotUserDetailsService implements UserDetailsService {
+
+    private final UserStore      userStore;
+    private final PasswordEncoder passwordEncoder;
+
+    /**
+     * Called once at startup to populate the demo user accounts.
+     */
+    @PostConstruct
+    public void seedDemoUsers() {
+<span class="fc" id="L34">        userStore.seed(passwordEncoder);</span>
+<span class="fc" id="L35">    }</span>
+
+    /**
+     * Loads a user by their username.
+     *
+     * @param username case-insensitive username.
+     * @throws UsernameNotFoundException if no matching user exists.
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+<span class="fc" id="L45">        return userStore.find(username)</span>
+<span class="fc" id="L46">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L47">                    log.warn(&quot;User not found: {}&quot;, username);</span>
+<span class="fc" id="L48">                    return new UsernameNotFoundException(&quot;User not found: &quot; + username);</span>
+                });
+    }
+
+    /**
+     * Registers a new user in the store.
+     *
+     * @param username  Desired username (must be unique).
+     * @param rawPassword Plain-text password — will be BCrypt-encoded before storage.
+     * @param email     User's email (stored for informational purposes only here).
+     * @param roles     Spring Security role names, e.g. {@code &quot;USER&quot;}, {@code &quot;ADMIN&quot;}.
+     * @throws IllegalStateException if the username already exists.
+     */
+    public UserDetails registerUser(String username, String rawPassword,
+                                    String email, String... roles) {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (userStore.exists(username)) {</span>
+<span class="fc" id="L64">            throw new IllegalStateException(&quot;Username already taken: &quot; + username);</span>
+        }
+
+<span class="fc" id="L67">        var user = org.springframework.security.core.userdetails.User.builder()</span>
+<span class="fc" id="L68">                .username(username.toLowerCase())</span>
+<span class="fc" id="L69">                .password(passwordEncoder.encode(rawPassword))</span>
+<span class="fc" id="L70">                .roles(roles)</span>
+<span class="fc" id="L71">                .build();</span>
+
+<span class="fc" id="L73">        userStore.put(user);</span>
+<span class="fc" id="L74">        log.info(&quot;Registered new user: {} with roles: {}&quot;, username, roles);</span>
+<span class="fc" id="L75">        return user;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

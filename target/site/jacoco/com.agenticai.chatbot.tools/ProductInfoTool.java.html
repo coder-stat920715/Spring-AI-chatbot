@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProductInfoTool.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.tools</a> &gt; <span class="el_source">ProductInfoTool.java</span></div><h1>ProductInfoTool.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.tools;
+
+import com.agenticai.chatbot.model.ChatModels.ProductInfoResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+/**
+ * Agentic tool: product catalog lookup.
+ *
+ * &lt;p&gt;Claude calls this when the user asks about product details, pricing,
+ * or availability. In production, replace the in-memory map with a call
+ * to your product database or external catalog API.
+ */
+<span class="fc" id="L18">@Slf4j</span>
+@Component
+<span class="fc" id="L20">public class ProductInfoTool {</span>
+
+    /** Simulated product catalog. */
+<span class="fc" id="L23">    private static final Map&lt;String, ProductInfoResponse&gt; CATALOG = Map.of(</span>
+
+            &quot;PROD-001&quot;, new ProductInfoResponse(
+                    &quot;PROD-001&quot;, &quot;AcmePro Laptop 15\&quot;&quot;, 1299.99, true,
+                    &quot;15-inch laptop with Intel Core i7, 16GB RAM, 512GB SSD, and 4K display.&quot;,
+                    &quot;Electronics&quot;),
+
+            &quot;PROD-002&quot;, new ProductInfoResponse(
+                    &quot;PROD-002&quot;, &quot;AcmePhone X12&quot;, 799.00, true,
+                    &quot;Flagship smartphone with 6.7\&quot; AMOLED display, 50MP camera, and 5G.&quot;,
+                    &quot;Mobile&quot;),
+
+            &quot;PROD-003&quot;, new ProductInfoResponse(
+                    &quot;PROD-003&quot;, &quot;AcmeBuds Pro&quot;, 149.99, false,
+                    &quot;True wireless earbuds with active noise cancellation and 30-hour battery.&quot;,
+                    &quot;Audio&quot;),
+
+            &quot;PROD-004&quot;, new ProductInfoResponse(
+                    &quot;PROD-004&quot;, &quot;AcmeWatch Series 5&quot;, 349.00, true,
+                    &quot;Smartwatch with health monitoring, GPS, and 7-day battery life.&quot;,
+                    &quot;Wearables&quot;),
+
+            &quot;PROD-005&quot;, new ProductInfoResponse(
+                    &quot;PROD-005&quot;, &quot;AcmeTab 11&quot;, 499.99, true,
+                    &quot;11-inch tablet with 2K display, 8GB RAM, stylus support, and 12-hour battery.&quot;,
+                    &quot;Tablets&quot;)
+    );
+
+    /**
+     * Retrieves product information by product ID.
+     *
+     * @param productId The product identifier, e.g. &quot;PROD-001&quot;.
+     */
+    @Tool(name = &quot;get_product_info&quot;,
+          description = &quot;Retrieve detailed product information including name, price, &quot;
+                      + &quot;availability, description, and category for a given product ID.&quot;)
+    public ProductInfoResponse getProductInfo(
+            @ToolParam(description = &quot;The product ID, e.g. 'PROD-001'&quot;)
+            String productId) {
+
+<span class="fc" id="L63">        log.info(&quot;[TOOL CALL] get_product_info → productId={}&quot;, productId);</span>
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        String normalized = productId == null ? &quot;&quot; : productId.trim().toUpperCase();</span>
+<span class="fc" id="L66">        ProductInfoResponse product = CATALOG.get(normalized);</span>
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (product == null) {</span>
+<span class="fc" id="L69">            return new ProductInfoResponse(</span>
+                    productId,
+                    &quot;Unknown Product&quot;,
+                    0.0, false,
+                    &quot;No product found with ID: &quot; + productId,
+                    &quot;N/A&quot;
+            );
+        }
+
+<span class="fc" id="L78">        return product;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

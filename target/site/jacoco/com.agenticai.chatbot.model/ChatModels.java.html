@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatModels.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.model</a> &gt; <span class="el_source">ChatModels.java</span></div><h1>ChatModels.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * All request/response records for the chatbot API.
+ *
+ * &lt;p&gt;These are the inner {@code data} payloads wrapped by
+ * {@link ApiResponse} in every HTTP response.
+ */
+public final class ChatModels {
+
+    private ChatModels() {}
+
+    // ── REST request models ────────────────────────────────────────────────
+
+    /**
+     * Standard chat request.
+     *
+     * @param sessionId Optional conversation ID (UUID). If omitted, a new session is created.
+     * @param message   The user's message (1–4000 chars, must not be blank).
+     * @param streaming Whether to stream the response as SSE tokens.
+     */
+<span class="fc" id="L31">    public record ChatRequest(</span>
+
+            @Pattern(regexp = &quot;^[a-zA-Z0-9\\-]*$&quot;,
+                    message = &quot;sessionId must be alphanumeric with optional hyphens&quot;)
+            @JsonProperty(&quot;sessionId&quot;)
+            String sessionId,
+
+            @NotBlank(message = &quot;message must not be blank&quot;)
+            @Size(min = 1, max = 4000, message = &quot;message must be between 1 and 4000 characters&quot;)
+            @JsonProperty(&quot;message&quot;)
+            String message,
+
+            @JsonProperty(&quot;streaming&quot;)
+            boolean streaming
+    ) {}
+
+    // ── REST response payloads (wrapped in ApiResponse&lt;T&gt;) ────────────────
+
+    /** Successful chat reply — returned as {@code ApiResponse&lt;ChatReply&gt;}. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L51">    public record ChatReply(</span>
+            @JsonProperty(&quot;sessionId&quot;)  String       sessionId,
+            @JsonProperty(&quot;reply&quot;)      String       reply,
+            @JsonProperty(&quot;toolsUsed&quot;)  List&lt;String&gt; toolsUsed,
+            @JsonProperty(&quot;model&quot;)      String       model,
+            @JsonProperty(&quot;timestamp&quot;)  Instant      timestamp
+    ) {
+        public static ChatReply of(String sessionId, String reply,
+                                   List&lt;String&gt; toolsUsed, String model) {
+<span class="fc" id="L60">            return new ChatReply(sessionId, reply, toolsUsed, model, Instant.now());</span>
+        }
+    }
+
+    /** Returned when a conversation history is cleared — DELETE /api/chat/sessions/{id}. */
+<span class="fc" id="L65">    public record SessionClearResponse(</span>
+            @JsonProperty(&quot;sessionId&quot;) String  sessionId,
+            @JsonProperty(&quot;cleared&quot;)   boolean cleared,
+            @JsonProperty(&quot;message&quot;)   String  message,
+            @JsonProperty(&quot;timestamp&quot;) Instant timestamp
+    ) {
+        public static SessionClearResponse of(String sessionId) {
+<span class="fc" id="L72">            return new SessionClearResponse(sessionId, true,</span>
+                    &quot;Conversation history cleared for session: &quot; + sessionId,
+<span class="fc" id="L74">                    Instant.now());</span>
+        }
+    }
+
+    /** Response for GET /api/chat/health */
+<span class="fc" id="L79">    public record HealthResponse(</span>
+            @JsonProperty(&quot;status&quot;)    String  status,
+            @JsonProperty(&quot;service&quot;)   String  service,
+            @JsonProperty(&quot;version&quot;)   String  version,
+            @JsonProperty(&quot;timestamp&quot;) Instant timestamp
+    ) {
+        public static HealthResponse up() {
+<span class="fc" id="L86">            return new HealthResponse(&quot;UP&quot;, &quot;spring-ai-chatbot&quot;, &quot;1.0.0&quot;, Instant.now());</span>
+        }
+    }
+
+    // ── Tool domain models ─────────────────────────────────────────────────
+
+<span class="fc" id="L92">    public record WeatherResponse(</span>
+            @JsonProperty(&quot;city&quot;)        String city,
+            @JsonProperty(&quot;temperature&quot;) double temperature,
+            @JsonProperty(&quot;unit&quot;)        String unit,
+            @JsonProperty(&quot;condition&quot;)   String condition,
+            @JsonProperty(&quot;humidity&quot;)    int    humidity,
+            @JsonProperty(&quot;windSpeed&quot;)   double windSpeed
+    ) {}
+
+<span class="fc" id="L101">    public record OrderTrackingResponse(</span>
+            @JsonProperty(&quot;orderId&quot;)           String orderId,
+            @JsonProperty(&quot;status&quot;)            String status,
+            @JsonProperty(&quot;estimatedDelivery&quot;) String estimatedDelivery,
+            @JsonProperty(&quot;carrier&quot;)           String carrier,
+            @JsonProperty(&quot;trackingNumber&quot;)    String trackingNumber,
+            @JsonProperty(&quot;lastLocation&quot;)      String lastLocation
+    ) {}
+
+<span class="fc" id="L110">    public record CalculatorResponse(</span>
+            @JsonProperty(&quot;expression&quot;) String expression,
+            @JsonProperty(&quot;result&quot;)     double result
+    ) {}
+
+<span class="fc" id="L115">    public record ProductInfoResponse(</span>
+            @JsonProperty(&quot;productId&quot;)   String  productId,
+            @JsonProperty(&quot;name&quot;)        String  name,
+            @JsonProperty(&quot;price&quot;)       double  price,
+            @JsonProperty(&quot;inStock&quot;)     boolean inStock,
+            @JsonProperty(&quot;description&quot;) String  description,
+            @JsonProperty(&quot;category&quot;)    String  category
+    ) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

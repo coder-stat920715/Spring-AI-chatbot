@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.model</a> &gt; <span class="el_source">ApiResponse.java</span></div><h1>ApiResponse.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.time.Instant;
+
+/**
+ * Standard API response envelope used across all endpoints.
+ *
+ * &lt;p&gt;Every HTTP response — success or error — is wrapped in this class
+ * so clients always receive a consistent JSON structure:
+ *
+ * &lt;pre&gt;
+ * {
+ *   &quot;success&quot;: true,
+ *   &quot;status&quot;:  200,
+ *   &quot;message&quot;: &quot;OK&quot;,
+ *   &quot;data&quot;:    { ... },        // present on 2xx
+ *   &quot;error&quot;:   null,           // present on 4xx / 5xx
+ *   &quot;path&quot;:    &quot;/api/chat&quot;,
+ *   &quot;timestamp&quot;: &quot;2026-05-31T...&quot;
+ * }
+ * &lt;/pre&gt;
+ *
+ * @param &lt;T&gt; The type of the payload in {@code data}.
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L29">public record ApiResponse&lt;T&gt;(</span>
+
+        @JsonProperty(&quot;success&quot;)   boolean success,
+        @JsonProperty(&quot;status&quot;)    int     status,
+        @JsonProperty(&quot;message&quot;)   String  message,
+        @JsonProperty(&quot;data&quot;)      T       data,
+        @JsonProperty(&quot;error&quot;)     ApiError error,
+        @JsonProperty(&quot;path&quot;)      String  path,
+        @JsonProperty(&quot;timestamp&quot;) Instant timestamp
+) {
+    // ── 2xx factories ─────────────────────────────────────────────────────
+
+    /** 200 OK */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; ok(T data, String path) {
+<span class="fc" id="L43">        return new ApiResponse&lt;&gt;(true, 200, &quot;OK&quot;, data, null, path, Instant.now());</span>
+    }
+
+    /** 201 Created */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; created(T data, String path) {
+<span class="fc" id="L48">        return new ApiResponse&lt;&gt;(true, 201, &quot;Created&quot;, data, null, path, Instant.now());</span>
+    }
+
+    /** 204 No Content (data is null by design) */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; noContent(String path) {
+<span class="fc" id="L53">        return new ApiResponse&lt;&gt;(true, 204, &quot;No Content&quot;, null, null, path, Instant.now());</span>
+    }
+
+    // ── 4xx factories ─────────────────────────────────────────────────────
+
+    /** 400 Bad Request */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; badRequest(String detail, String path) {
+<span class="fc" id="L60">        return new ApiResponse&lt;&gt;(false, 400, &quot;Bad Request&quot;,</span>
+<span class="fc" id="L61">                null, new ApiError(&quot;BAD_REQUEST&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 401 Unauthorized */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; unauthorized(String detail, String path) {
+<span class="fc" id="L66">        return new ApiResponse&lt;&gt;(false, 401, &quot;Unauthorized&quot;,</span>
+<span class="fc" id="L67">                null, new ApiError(&quot;UNAUTHORIZED&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 404 Not Found */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; notFound(String detail, String path) {
+<span class="fc" id="L72">        return new ApiResponse&lt;&gt;(false, 404, &quot;Not Found&quot;,</span>
+<span class="fc" id="L73">                null, new ApiError(&quot;NOT_FOUND&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 405 Method Not Allowed */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; methodNotAllowed(String detail, String path) {
+<span class="fc" id="L78">        return new ApiResponse&lt;&gt;(false, 405, &quot;Method Not Allowed&quot;,</span>
+<span class="fc" id="L79">                null, new ApiError(&quot;METHOD_NOT_ALLOWED&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 409 Conflict */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; conflict(String detail, String path) {
+<span class="fc" id="L84">        return new ApiResponse&lt;&gt;(false, 409, &quot;Conflict&quot;,</span>
+<span class="fc" id="L85">                null, new ApiError(&quot;CONFLICT&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 422 Unprocessable Entity (validation passed but business rules failed) */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; unprocessable(String detail, String path) {
+<span class="fc" id="L90">        return new ApiResponse&lt;&gt;(false, 422, &quot;Unprocessable Entity&quot;,</span>
+<span class="fc" id="L91">                null, new ApiError(&quot;UNPROCESSABLE_ENTITY&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 429 Too Many Requests */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; tooManyRequests(String detail, String path) {
+<span class="fc" id="L96">        return new ApiResponse&lt;&gt;(false, 429, &quot;Too Many Requests&quot;,</span>
+<span class="fc" id="L97">                null, new ApiError(&quot;RATE_LIMITED&quot;, detail), path, Instant.now());</span>
+    }
+
+    // ── 5xx factories ─────────────────────────────────────────────────────
+
+    /** 500 Internal Server Error */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; internalError(String detail, String path) {
+<span class="fc" id="L104">        return new ApiResponse&lt;&gt;(false, 500, &quot;Internal Server Error&quot;,</span>
+<span class="fc" id="L105">                null, new ApiError(&quot;INTERNAL_ERROR&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 502 Bad Gateway (upstream AI API error) */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; badGateway(String detail, String path) {
+<span class="fc" id="L110">        return new ApiResponse&lt;&gt;(false, 502, &quot;Bad Gateway&quot;,</span>
+<span class="fc" id="L111">                null, new ApiError(&quot;AI_API_ERROR&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 503 Service Unavailable */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; serviceUnavailable(String detail, String path) {
+<span class="fc" id="L116">        return new ApiResponse&lt;&gt;(false, 503, &quot;Service Unavailable&quot;,</span>
+<span class="fc" id="L117">                null, new ApiError(&quot;SERVICE_UNAVAILABLE&quot;, detail), path, Instant.now());</span>
+    }
+
+    /** 504 Gateway Timeout */
+    public static &lt;T&gt; ApiResponse&lt;T&gt; gatewayTimeout(String detail, String path) {
+<span class="fc" id="L122">        return new ApiResponse&lt;&gt;(false, 504, &quot;Gateway Timeout&quot;,</span>
+<span class="fc" id="L123">                null, new ApiError(&quot;GATEWAY_TIMEOUT&quot;, detail), path, Instant.now());</span>
+    }
+
+    // ── Nested error detail ────────────────────────────────────────────────
+
+<span class="fc" id="L128">    public record ApiError(</span>
+            @JsonProperty(&quot;code&quot;)   String code,
+            @JsonProperty(&quot;detail&quot;) String detail
+    ) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

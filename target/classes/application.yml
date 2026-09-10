@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: spring-ai-chatbot
+
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      base-url: https://api.anthropic.com
+      version: "2023-06-01"
+      chat:
+        options:
+          model: claude-sonnet-4-20250514
+          temperature: 0.7
+          max-tokens: 2048
+          top-p: 0.9
+
+    retry:
+      max-attempts: 3
+      initial-interval: 2s
+      multiplier: 2.0
+      max-interval: 30s
+      on-client-errors: false
+      on-http-codes: 429, 529
+
+# ── JWT Configuration ─────────────────────────────────────────────────────
+app:
+  jwt:
+    # IMPORTANT: Replace with a secure 256-bit Base64-encoded secret in production.
+    # Generate with: openssl rand -base64 32
+    # Never commit the real secret to source control — use env vars or Vault.
+    secret: ${JWT_SECRET:c3ByaW5nLWFpLWNoYXRib3Qtand0LXNlY3JldC1rZXktMjAyNi1wcm9kdWN0aW9u}
+    access-token-expiration-ms: 900000      # 15 minutes
+    refresh-token-expiration-ms: 604800000  # 7 days
+
+# ── Springdoc / Swagger UI ────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs            # OpenAPI JSON spec
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html        # Swagger UI entry point
+    operations-sorter: method     # Sort by HTTP method (GET, POST, etc.)
+    tags-sorter: alpha            # Sort tags alphabetically
+    display-request-duration: true
+    try-it-out-enabled: true      # Enable "Try it out" by default
+    filter: true                  # Show search filter box
+    persist-authorization: true   # Keep auth token across page refreshes
+    default-models-expand-depth: 1
+  show-actuator: false            # Don't expose /actuator in Swagger UI
+  packages-to-scan: com.agenticai.chatbot.controller
+
+# ── Actuator ──────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# ── Server ────────────────────────────────────────────────────────────────
+server:
+  port: 8081
+  # Return 404 instead of redirect for unknown paths (needed for NoHandlerFoundException)
+  error:
+    whitelabel:
+      enabled: false
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.agenticai: DEBUG
+    org.springframework.ai: DEBUG
+    org.springframework.security: INFO     # set to DEBUG to trace security decisions
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

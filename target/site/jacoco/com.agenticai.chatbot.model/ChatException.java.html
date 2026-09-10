@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.model</a> &gt; <span class="el_source">ChatException.java</span></div><h1>ChatException.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.model;
+
+/**
+ * Typed exception hierarchy for the chatbot application.
+ *
+ * &lt;p&gt;Each exception maps to a specific HTTP status code, allowing
+ * {@link com.agenticai.chatbot.advisor.GlobalExceptionHandler} to return
+ * precise, machine-readable error responses.
+ *
+ * &lt;pre&gt;
+ * Exception                   → HTTP Status
+ * ────────────────────────────────────────────
+ * ChatException (base)        → 500
+ *   BadRequestException       → 400
+ *   ResourceNotFoundException → 404
+ *   RateLimitException        → 429
+ *   AiApiException            → 502
+ *   AiTimeoutException        → 504
+ *   ServiceUnavailableException → 503
+ * &lt;/pre&gt;
+ */
+<span class="nc" id="L22">public class ChatException {</span>
+
+    /** Base exception — maps to 500 Internal Server Error. */
+    public static class ChatBaseException extends RuntimeException {
+<span class="fc" id="L26">        public ChatBaseException(String message) { super(message); }</span>
+<span class="fc" id="L27">        public ChatBaseException(String message, Throwable cause) { super(message, cause); }</span>
+    }
+
+    /** 400 Bad Request — malformed input that passes bean validation but fails business logic. */
+    public static class BadRequestException extends ChatBaseException {
+<span class="fc" id="L32">        public BadRequestException(String message) { super(message); }</span>
+    }
+
+    /** 404 Not Found — requested resource does not exist (e.g., unknown session). */
+    public static class ResourceNotFoundException extends ChatBaseException {
+        public ResourceNotFoundException(String resource, String id) {
+<span class="fc" id="L38">            super(resource + &quot; not found: &quot; + id);</span>
+<span class="fc" id="L39">        }</span>
+    }
+
+    /** 422 Unprocessable Entity — input valid, but business rule rejected it. */
+    public static class UnprocessableException extends ChatBaseException {
+<span class="fc" id="L44">        public UnprocessableException(String message) { super(message); }</span>
+    }
+
+    /** 429 Too Many Requests — rate limit exceeded. */
+    public static class RateLimitException extends ChatBaseException {
+<span class="fc" id="L49">        public RateLimitException(String message) { super(message); }</span>
+<span class="fc" id="L50">        public RateLimitException() { super(&quot;Rate limit exceeded. Please wait before sending another message.&quot;); }</span>
+    }
+
+    /** 502 Bad Gateway — upstream Anthropic API returned an error. */
+    public static class AiApiException extends ChatBaseException {
+<span class="fc" id="L55">        public AiApiException(String message) { super(message); }</span>
+<span class="fc" id="L56">        public AiApiException(String message, Throwable cause) { super(message, cause); }</span>
+    }
+
+    /** 503 Service Unavailable — AI model or a dependent service is temporarily down. */
+    public static class ServiceUnavailableException extends ChatBaseException {
+<span class="fc" id="L61">        public ServiceUnavailableException(String message) { super(message); }</span>
+    }
+
+    /** 504 Gateway Timeout — upstream AI API did not respond in time. */
+    public static class AiTimeoutException extends ChatBaseException {
+<span class="fc" id="L66">        public AiTimeoutException(String message) { super(message); }</span>
+<span class="fc" id="L67">        public AiTimeoutException() { super(&quot;AI model timed out. Please try again.&quot;); }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

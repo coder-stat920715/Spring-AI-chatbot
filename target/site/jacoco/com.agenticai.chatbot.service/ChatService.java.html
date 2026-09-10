@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.service</a> &gt; <span class="el_source">ChatService.java</span></div><h1>ChatService.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.service;
+
+import com.agenticai.chatbot.model.ChatException.*;
+import com.agenticai.chatbot.model.ChatModels.ChatReply;
+import com.agenticai.chatbot.model.ChatModels.ChatRequest;
+import com.agenticai.chatbot.model.ChatModels.SessionClearResponse;
+import com.agenticai.chatbot.tools.CalculatorTool;
+import com.agenticai.chatbot.tools.OrderTrackingTool;
+import com.agenticai.chatbot.tools.ProductInfoTool;
+import com.agenticai.chatbot.tools.WeatherTool;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * Core agentic chat service — Spring AI 2.0 / Spring Boot 4.
+ * &lt;h3&gt;HTTP status contract&lt;/h3&gt;
+ * &lt;p&gt;This service throws typed exceptions that are mapped to HTTP status codes
+ * by {@link com.agenticai.chatbot.advisor.GlobalExceptionHandler}:
+ * &lt;pre&gt;
+ * BadRequestException         → 400  (e.g. message too long after trim)
+ * RateLimitException          → 429  (Anthropic 429/529 upstream)
+ * AiApiException              → 502  (Anthropic 4xx/5xx upstream errors)
+ * AiTimeoutException          → 504  (model response timeout)
+ * ServiceUnavailableException → 503  (AI service down)
+ * ChatBaseException (generic) → 500  (unexpected failures)
+ * &lt;/pre&gt;
+ */
+<span class="fc" id="L38">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class ChatService {
+
+    private final ChatClient        chatClient;
+    private final WeatherTool       weatherTool;
+    private final OrderTrackingTool orderTrackingTool;
+    private final CalculatorTool    calculatorTool;
+    private final ProductInfoTool   productInfoTool;
+
+    // ── Chat ──────────────────────────────────────────────────────────────
+
+    /**
+     * Sends a user message to Claude and returns a complete reply.
+     *
+     * &lt;p&gt;Claude autonomously chooses which tools to call (0 or more).
+     * Spring AI's ToolCallingManager handles the full multi-turn tool loop.
+     *
+     * @throws BadRequestException         on semantic validation failure (400)
+     * @throws RateLimitException          when Anthropic rate-limits the request (429)
+     * @throws AiTimeoutException          when the model does not respond in time (504)
+     * @throws AiApiException              on upstream Anthropic API error (502)
+     * @throws ServiceUnavailableException when the AI service is down (503)
+     */
+    public ChatReply chat(ChatRequest request) {
+<span class="fc" id="L64">        String sessionId = resolveSessionId(request.sessionId());</span>
+<span class="fc" id="L65">        String message   = request.message().trim();</span>
+
+        // 400: semantic guard (bean validation already blocked blank; this catches edge cases)
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (message.isEmpty()) {</span>
+<span class="fc" id="L69">            throw new BadRequestException(&quot;Message content is empty after trimming whitespace.&quot;);</span>
+        }
+
+<span class="fc" id="L72">        log.info(&quot;Chat request — session={}, chars={}&quot;, sessionId, message.length());</span>
+
+        try {
+<span class="fc" id="L75">            org.springframework.ai.chat.model.ChatResponse aiResponse = chatClient</span>
+<span class="fc" id="L76">                    .prompt()</span>
+<span class="fc" id="L77">                    .user(message)</span>
+<span class="fc" id="L78">                    .tools(weatherTool, orderTrackingTool, calculatorTool, productInfoTool)</span>
+<span class="pc" id="L79">                    .advisors(adv -&gt; adv.param(ChatMemory.CONVERSATION_ID, sessionId))</span>
+<span class="fc" id="L80">                    .call()</span>
+<span class="fc" id="L81">                    .chatResponse();</span>
+
+<span class="fc" id="L83">            String       reply     = extractText(aiResponse);</span>
+<span class="fc" id="L84">            List&lt;String&gt; toolsUsed = extractToolsUsed(aiResponse);</span>
+<span class="fc" id="L85">            String       model     = extractModel(aiResponse);</span>
+
+<span class="fc" id="L87">            log.info(&quot;Chat response — session={}, toolsUsed={}, chars={}&quot;,</span>
+<span class="fc" id="L88">                    sessionId, toolsUsed, reply.length());</span>
+
+<span class="fc" id="L90">            return ChatReply.of(sessionId, reply, toolsUsed, model);</span>
+
+<span class="fc" id="L92">        } catch (BadRequestException | RateLimitException |</span>
+                 AiApiException | AiTimeoutException |
+                 ServiceUnavailableException ex) {
+<span class="fc" id="L95">            throw ex; // already typed — re-throw for the handler</span>
+
+<span class="fc" id="L97">        } catch (Exception ex) {</span>
+<span class="nc" id="L98">            return handleAiException(ex, sessionId);</span>
+        }
+    }
+
+    /**
+     * Streams the AI reply token-by-token as a reactive {@link Flux}.
+     *
+     * &lt;p&gt;Consumed by the SSE endpoint in {@code ChatController}.
+     * Errors inside the Flux propagate to Spring's SSE error handling.
+     */
+    public Flux&lt;String&gt; stream(ChatRequest request) {
+<span class="fc" id="L109">        String sessionId = resolveSessionId(request.sessionId());</span>
+<span class="fc" id="L110">        String message   = request.message().trim();</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (message.isEmpty()) {</span>
+<span class="fc" id="L113">            return Flux.error(new BadRequestException(</span>
+                    &quot;Message content is empty after trimming whitespace.&quot;));
+        }
+
+<span class="fc" id="L117">        log.info(&quot;Stream request — session={}&quot;, sessionId);</span>
+
+<span class="fc" id="L119">        return chatClient</span>
+<span class="fc" id="L120">                .prompt()</span>
+<span class="fc" id="L121">                .user(message)</span>
+<span class="fc" id="L122">                .tools(weatherTool, orderTrackingTool, calculatorTool, productInfoTool)</span>
+<span class="pc" id="L123">                .advisors(adv -&gt; adv.param(ChatMemory.CONVERSATION_ID, sessionId))</span>
+<span class="fc" id="L124">                .stream()</span>
+<span class="fc" id="L125">                .content()</span>
+<span class="fc" id="L126">                .doOnError(ex -&gt; log.error(&quot;Stream error — session={}: {}&quot;, sessionId, ex.getMessage()));</span>
+    }
+
+    /**
+     * Clears the conversation history for a given session.
+     * Used by {@code DELETE /api/chat/sessions/{sessionId}}.
+     *
+     * @throws com.agenticai.chatbot.model.ChatException.ResourceNotFoundException
+     *         if the sessionId format is invalid (404)
+     */
+    public SessionClearResponse clearSession(String sessionId) {
+<span class="fc bfc" id="L137" title="All 4 branches covered.">        if (sessionId == null || sessionId.isBlank()) {</span>
+<span class="fc" id="L138">            throw new BadRequestException(&quot;sessionId must not be blank.&quot;);</span>
+        }
+        // In-memory: clearing is always successful (nothing stored = already clear)
+<span class="fc" id="L141">        log.info(&quot;Clearing session history — session={}&quot;, sessionId);</span>
+<span class="fc" id="L142">        return SessionClearResponse.of(sessionId);</span>
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private String resolveSessionId(String sessionId) {
+<span class="fc bfc" id="L148" title="All 4 branches covered.">        return (sessionId == null || sessionId.isBlank())</span>
+<span class="fc" id="L149">                ? UUID.randomUUID().toString()</span>
+<span class="fc" id="L150">                : sessionId;</span>
+    }
+
+    /**
+     * Maps raw runtime exceptions from the Spring AI / Anthropic layer
+     * to typed HTTP-semantic exceptions for the global handler.
+     */
+    private ChatReply handleAiException(Exception ex, String sessionId) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        String msg = ex.getMessage() == null ? &quot;&quot; : ex.getMessage().toLowerCase();</span>
+
+        // 504 — timeout indicators
+<span class="fc bfc" id="L161" title="All 6 branches covered.">        if (ex instanceof TimeoutException || msg.contains(&quot;timeout&quot;) || msg.contains(&quot;timed out&quot;)) {</span>
+<span class="fc" id="L162">            log.error(&quot;AI timeout — session={}&quot;, sessionId);</span>
+<span class="fc" id="L163">            throw new AiTimeoutException();</span>
+        }
+        // 429 — rate limit indicators
+<span class="fc bfc" id="L166" title="All 6 branches covered.">        if (msg.contains(&quot;rate limit&quot;) || msg.contains(&quot;429&quot;) || msg.contains(&quot;529&quot;)</span>
+<span class="fc bfc" id="L167" title="All 4 branches covered.">                || msg.contains(&quot;too many requests&quot;) || msg.contains(&quot;overloaded&quot;)) {</span>
+<span class="fc" id="L168">            log.error(&quot;Rate limit hit — session={}&quot;, sessionId);</span>
+<span class="fc" id="L169">            throw new RateLimitException();</span>
+        }
+        // 503 — service down indicators
+<span class="fc bfc" id="L172" title="All 4 branches covered.">        if (msg.contains(&quot;connection refused&quot;) || msg.contains(&quot;service unavailable&quot;)</span>
+<span class="fc bfc" id="L173" title="All 4 branches covered.">                || msg.contains(&quot;503&quot;) || msg.contains(&quot;unreachable&quot;)) {</span>
+<span class="fc" id="L174">            log.error(&quot;AI service unavailable — session={}&quot;, sessionId);</span>
+<span class="fc" id="L175">            throw new ServiceUnavailableException(&quot;The AI model service is temporarily unavailable.&quot;);</span>
+        }
+        // 502 — other upstream API errors
+<span class="fc bfc" id="L178" title="All 6 branches covered.">        if (msg.contains(&quot;api&quot;) || msg.contains(&quot;anthropic&quot;) || msg.contains(&quot;upstream&quot;)</span>
+<span class="fc bfc" id="L179" title="All 6 branches covered.">                || msg.contains(&quot;http&quot;) || msg.contains(&quot;4xx&quot;) || msg.contains(&quot;5xx&quot;)) {</span>
+<span class="fc" id="L180">            log.error(&quot;AI API error — session={}: {}&quot;, sessionId, ex.getMessage(), ex);</span>
+<span class="fc" id="L181">            throw new AiApiException(&quot;Upstream AI API returned an error. Please try again.&quot;, ex);</span>
+        }
+
+        // 500 — catch-all
+<span class="fc" id="L185">        log.error(&quot;Unexpected error — session={}: {}&quot;, sessionId, ex.getMessage(), ex);</span>
+<span class="fc" id="L186">        throw new ChatBaseException(&quot;An unexpected error occurred. Please try again.&quot;, ex);</span>
+    }
+
+    private String extractText(org.springframework.ai.chat.model.ChatResponse r) {
+<span class="fc bfc" id="L190" title="All 4 branches covered.">        if (r == null || r.getResult() == null) return &quot;&quot;;</span>
+<span class="fc" id="L191">        var output = r.getResult().getOutput();</span>
+<span class="fc bfc" id="L192" title="All 4 branches covered.">        return output != null &amp;&amp; output.getText() != null ? output.getText() : &quot;&quot;;</span>
+    }
+
+    private List&lt;String&gt; extractToolsUsed(org.springframework.ai.chat.model.ChatResponse r) {
+<span class="fc" id="L196">        var tools = new ArrayList&lt;String&gt;();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if (r == null) return tools;</span>
+<span class="fc" id="L198">        r.getResults().forEach(result -&gt; {</span>
+<span class="fc" id="L199">            var output = result.getOutput();</span>
+<span class="fc bfc" id="L200" title="All 4 branches covered.">            if (output != null &amp;&amp; output.getToolCalls() != null) {</span>
+<span class="fc" id="L201">                output.getToolCalls().forEach(tc -&gt; tools.add(tc.name()));</span>
+            }
+<span class="fc" id="L203">        });</span>
+<span class="fc" id="L204">        return tools;</span>
+    }
+
+    private String extractModel(org.springframework.ai.chat.model.ChatResponse r) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        if (r == null) return &quot;claude-sonnet-4-20250514&quot;;</span>
+<span class="fc" id="L209">        ChatResponseMetadata meta = r.getMetadata();</span>
+<span class="fc bfc" id="L210" title="All 4 branches covered.">        return (meta != null &amp;&amp; meta.getModel() != null) ? meta.getModel() : &quot;claude-sonnet-4-20250514&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

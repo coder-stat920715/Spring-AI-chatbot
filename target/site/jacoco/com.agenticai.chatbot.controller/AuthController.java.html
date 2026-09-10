@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.controller</a> &gt; <span class="el_source">AuthController.java</span></div><h1>AuthController.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.controller;
+
+import com.agenticai.chatbot.model.ApiResponse;
+import com.agenticai.chatbot.model.auth.AuthModels.*;
+import com.agenticai.chatbot.security.service.ChatbotUserDetailsService;
+import com.agenticai.chatbot.security.util.JwtUtil;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Authentication REST controller.
+ *
+ * &lt;p&gt;All endpoints here are public (no JWT required) except GET /api/auth/me.
+ * Security rules are enforced in {@link com.agenticai.chatbot.config.SecurityConfig}.
+ */
+<span class="fc" id="L38">@Slf4j</span>
+@RestController
+@RequestMapping(&quot;/api/auth&quot;)
+@RequiredArgsConstructor
+@Tag(name = &quot;Authentication&quot;,
+        description = &quot;JWT authentication — register, login, token refresh, and profile&quot;)
+public class AuthController {
+
+    private final AuthenticationManager      authManager;
+    private final ChatbotUserDetailsService  userDetailsService;
+    private final JwtUtil                    jwtUtil;
+
+    // ── Register ──────────────────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Register a new user&quot;,
+            description = &quot;&quot;&quot;
+                Creates a new account and immediately returns JWT tokens.
+                Role defaults to `USER` if not specified.
+                Use `ADMIN` to create an admin account (protect this in production!).
+                
+                **Demo users already seeded:** `admin / Admin@1234` and `user / User@1234`
+                &quot;&quot;&quot;,
+            security = {}   // public — no JWT needed
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = &quot;201&quot;,
+            description  = &quot;User registered successfully&quot;,
+            content = @Content(mediaType = &quot;application/json&quot;,
+                    examples = @ExampleObject(name = &quot;success&quot;, value = &quot;&quot;&quot;
+                    {
+                      &quot;success&quot;: true,
+                      &quot;status&quot;: 201,
+                      &quot;message&quot;: &quot;Created&quot;,
+                      &quot;data&quot;: {
+                        &quot;accessToken&quot;: &quot;eyJhbGci...&quot;,
+                        &quot;refreshToken&quot;: &quot;eyJhbGci...&quot;,
+                        &quot;tokenType&quot;: &quot;Bearer&quot;,
+                        &quot;expiresIn&quot;: 900,
+                        &quot;username&quot;: &quot;newuser&quot;,
+                        &quot;roles&quot;: [&quot;ROLE_USER&quot;]
+                      }
+                    }
+                    &quot;&quot;&quot;))
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;400&quot;,
+            description = &quot;Validation failed or username already taken&quot;)
+    @PostMapping(value = &quot;/register&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;AuthResponse&gt;&gt; register(
+            @Valid @RequestBody RegisterRequest req,
+            HttpServletRequest httpReq) {
+
+<span class="fc" id="L92">        log.info(&quot;Register request for username={}&quot;, req.username());</span>
+
+        try {
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">            String role = (req.role() == null || req.role().isBlank()) ? &quot;USER&quot;</span>
+<span class="fc" id="L96">                    : req.role().toUpperCase().replace(&quot;ROLE_&quot;, &quot;&quot;);</span>
+
+<span class="fc" id="L98">            UserDetails user = userDetailsService.registerUser(</span>
+<span class="fc" id="L99">                    req.username(), req.password(), req.email(), role);</span>
+
+<span class="fc" id="L101">            AuthResponse payload = buildAuthResponse(user);</span>
+<span class="fc" id="L102">            log.info(&quot;Registered new user: {}&quot;, req.username());</span>
+<span class="fc" id="L103">            return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="fc" id="L104">                    .body(ApiResponse.created(payload, httpReq.getRequestURI()));</span>
+
+<span class="fc" id="L106">        } catch (IllegalStateException e) {</span>
+<span class="fc" id="L107">            return ResponseEntity.status(HttpStatus.CONFLICT)</span>
+<span class="fc" id="L108">                    .body(ApiResponse.conflict(e.getMessage(), httpReq.getRequestURI()));</span>
+        }
+    }
+
+    // ── Login ─────────────────────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Login and obtain JWT tokens&quot;,
+            description = &quot;&quot;&quot;
+                Authenticates with username + password and returns a short-lived
+                **access token** (15 min) and a long-lived **refresh token** (7 days).
+                
+                Copy the `accessToken` and use it in the **Authorize 🔒** button above.
+                
+                **Demo credentials:**
+                - Admin: `admin / Admin@1234`
+                - User:  `user / User@1234`
+                &quot;&quot;&quot;,
+            security = {}   // public
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;200&quot;,
+            description = &quot;Login successful — tokens returned&quot;,
+            content = @Content(mediaType = &quot;application/json&quot;,
+                    examples = @ExampleObject(value = &quot;&quot;&quot;
+                    {
+                      &quot;success&quot;: true,
+                      &quot;status&quot;: 200,
+                      &quot;message&quot;: &quot;OK&quot;,
+                      &quot;data&quot;: {
+                        &quot;accessToken&quot;:  &quot;eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iLCJST0xFX1VTRVIiXX0...&quot;,
+                        &quot;refreshToken&quot;: &quot;eyJhbGciOiJIUzI1NiJ9...&quot;,
+                        &quot;tokenType&quot;:    &quot;Bearer&quot;,
+                        &quot;expiresIn&quot;:    900,
+                        &quot;username&quot;:     &quot;admin&quot;,
+                        &quot;roles&quot;:        [&quot;ROLE_ADMIN&quot;, &quot;ROLE_USER&quot;],
+                        &quot;issuedAt&quot;:     &quot;2026-05-31T10:00:00Z&quot;
+                      }
+                    }
+                    &quot;&quot;&quot;)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description = &quot;Invalid credentials&quot;)
+    @PostMapping(value = &quot;/login&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;AuthResponse&gt;&gt; login(
+            @Valid @RequestBody LoginRequest req,
+            HttpServletRequest httpReq) {
+
+<span class="fc" id="L156">        log.info(&quot;Login attempt for username={}&quot;, req.username());</span>
+
+        try {
+<span class="fc" id="L159">            authManager.authenticate(</span>
+<span class="fc" id="L160">                    new UsernamePasswordAuthenticationToken(req.username(), req.password()));</span>
+<span class="fc" id="L161">        } catch (BadCredentialsException e) {</span>
+<span class="fc" id="L162">            log.warn(&quot;Login failed for username={}&quot;, req.username());</span>
+<span class="fc" id="L163">            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L164">                    .body(ApiResponse.unauthorized(</span>
+<span class="fc" id="L165">                            &quot;Invalid username or password.&quot;, httpReq.getRequestURI()));</span>
+<span class="fc" id="L166">        }</span>
+
+<span class="fc" id="L168">        UserDetails user = userDetailsService.loadUserByUsername(req.username());</span>
+<span class="fc" id="L169">        AuthResponse payload = buildAuthResponse(user);</span>
+<span class="fc" id="L170">        log.info(&quot;Login successful for username={}&quot;, req.username());</span>
+<span class="fc" id="L171">        return ResponseEntity.ok(ApiResponse.ok(payload, httpReq.getRequestURI()));</span>
+    }
+
+    // ── Refresh Token ─────────────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Refresh access token&quot;,
+            description = &quot;&quot;&quot;
+                Exchange a valid **refresh token** for a new access token.
+                The refresh token itself is reissued too, implementing token rotation.
+                &quot;&quot;&quot;,
+            security = {}   // public — refresh token IS the credential
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;200&quot;,
+            description = &quot;Tokens refreshed successfully&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description = &quot;Refresh token is invalid or expired&quot;)
+    @PostMapping(value = &quot;/refresh&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;AuthResponse&gt;&gt; refresh(
+            @Valid @RequestBody RefreshTokenRequest req,
+            HttpServletRequest httpReq) {
+
+<span class="fc" id="L195">        String token = req.refreshToken();</span>
+
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if (!jwtUtil.isTokenStructureValid(token)) {</span>
+<span class="fc" id="L198">            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L199">                    .body(ApiResponse.badRequest(</span>
+<span class="fc" id="L200">                            &quot;Refresh token is invalid or expired.&quot;, httpReq.getRequestURI()));</span>
+        }
+
+<span class="fc" id="L203">        String tokenType = jwtUtil.extractTokenType(token);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (!&quot;refresh&quot;.equals(tokenType)) {</span>
+<span class="fc" id="L205">            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L206">                    .body(ApiResponse.badRequest(</span>
+<span class="fc" id="L207">                            &quot;Provided token is not a refresh token.&quot;, httpReq.getRequestURI()));</span>
+        }
+
+<span class="fc" id="L210">        String username = jwtUtil.extractUsername(token);</span>
+<span class="fc" id="L211">        UserDetails user = userDetailsService.loadUserByUsername(username);</span>
+<span class="fc" id="L212">        AuthResponse payload = buildAuthResponse(user);</span>
+
+<span class="fc" id="L214">        log.info(&quot;Token refreshed for username={}&quot;, username);</span>
+<span class="fc" id="L215">        return ResponseEntity.ok(ApiResponse.ok(payload, httpReq.getRequestURI()));</span>
+    }
+
+    // ── Current User Info ─────────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Get current user info&quot;,
+            description = &quot;Returns profile information for the currently authenticated user. Requires a valid JWT.&quot;,
+            security    = { @SecurityRequirement(name = &quot;BearerAuth&quot;) }
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;200&quot;,
+            description = &quot;User info returned&quot;,
+            content = @Content(mediaType = &quot;application/json&quot;,
+                    examples = @ExampleObject(value = &quot;&quot;&quot;
+                    {
+                      &quot;success&quot;: true,
+                      &quot;status&quot;: 200,
+                      &quot;data&quot;: {
+                        &quot;username&quot;: &quot;admin&quot;,
+                        &quot;email&quot;:    &quot;N/A&quot;,
+                        &quot;roles&quot;:    [&quot;ROLE_ADMIN&quot;, &quot;ROLE_USER&quot;],
+                        &quot;active&quot;:   true
+                      }
+                    }
+                    &quot;&quot;&quot;)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description = &quot;Not authenticated&quot;)
+    @GetMapping(value = &quot;/me&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;UserInfoResponse&gt;&gt; me(
+            @AuthenticationPrincipal UserDetails principal,
+            HttpServletRequest httpReq) {
+
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        if (principal == null) {</span>
+<span class="fc" id="L248">            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L249">                    .body(ApiResponse.badRequest(&quot;Not authenticated.&quot;, httpReq.getRequestURI()));</span>
+        }
+
+<span class="fc" id="L252">        Set&lt;String&gt; roles = principal.getAuthorities().stream()</span>
+<span class="fc" id="L253">                .map(GrantedAuthority::getAuthority)</span>
+<span class="fc" id="L254">                .collect(Collectors.toSet());</span>
+
+<span class="fc" id="L256">        var info = new UserInfoResponse(principal.getUsername(), &quot;N/A&quot;, roles, principal.isEnabled());</span>
+<span class="fc" id="L257">        return ResponseEntity.ok(ApiResponse.ok(info, httpReq.getRequestURI()));</span>
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────
+
+    private AuthResponse buildAuthResponse(UserDetails user) {
+<span class="fc" id="L263">        String accessToken  = jwtUtil.generateAccessToken(user);</span>
+<span class="fc" id="L264">        String refreshToken = jwtUtil.generateRefreshToken(user);</span>
+<span class="fc" id="L265">        Set&lt;String&gt; roles = user.getAuthorities().stream()</span>
+<span class="fc" id="L266">                .map(GrantedAuthority::getAuthority)</span>
+<span class="fc" id="L267">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L268">        return AuthResponse.of(accessToken, refreshToken,</span>
+<span class="fc" id="L269">                jwtUtil.getAccessTokenExpirationSeconds(), user.getUsername(), roles);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

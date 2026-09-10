@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JwtAuthenticationFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.security.filter</a> &gt; <span class="el_source">JwtAuthenticationFilter.java</span></div><h1>JwtAuthenticationFilter.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.security.filter;
+
+import com.agenticai.chatbot.security.service.ChatbotUserDetailsService;
+import com.agenticai.chatbot.security.util.JwtUtil;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+<span class="fc" id="L21">@Slf4j</span>
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtUtil                    jwtUtil;
+    private final ChatbotUserDetailsService  userDetailsService;
+
+    private static final String BEARER_PREFIX  = &quot;Bearer &quot;;
+    private static final String AUTH_HEADER    = &quot;Authorization&quot;;
+
+<span class="fc" id="L32">    private static final String[] PUBLIC_AUTH_PATHS = {</span>
+            &quot;/api/auth/login&quot;,
+            &quot;/api/auth/register&quot;,
+            &quot;/api/auth/refresh&quot;
+    };
+
+<span class="fc" id="L38">    private static final String[] PUBLIC_PATH_PREFIXES = {</span>
+            &quot;/swagger-ui&quot;,
+            &quot;/v3/api-docs&quot;,
+            &quot;/actuator/health&quot;,
+            &quot;/api/chat/health&quot;,
+            &quot;/error&quot;
+    };
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // Use getRequestURI() to bypass inconsistencies with getServletPath()
+<span class="fc" id="L49">        String path = request.getRequestURI();</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        for (String pub : PUBLIC_AUTH_PATHS) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            if (path.equals(pub)) return true;</span>
+        }
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        for (String pub : PUBLIC_PATH_PREFIXES) {</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">            if (path.startsWith(pub)) return true;</span>
+        }
+<span class="fc" id="L57">        return false;</span>
+    }
+
+    @Override
+    protected void doFilterInternal(@NonNull HttpServletRequest  request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain          chain)
+            throws ServletException, IOException {
+
+<span class="fc" id="L66">        String authHeader = request.getHeader(AUTH_HEADER);</span>
+
+<span class="fc bfc" id="L68" title="All 4 branches covered.">        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {</span>
+<span class="fc" id="L69">            chain.doFilter(request, response);</span>
+<span class="fc" id="L70">            return;</span>
+        }
+
+<span class="fc" id="L73">        String jwt = authHeader.substring(BEARER_PREFIX.length());</span>
+
+        // Enhanced debugging to catch if jwtUtil is rejecting your token
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!jwtUtil.isTokenStructureValid(jwt)) {</span>
+<span class="fc" id="L77">            log.warn(&quot;JWT token structure validation failed for request on path: {}&quot;, request.getRequestURI());</span>
+<span class="fc" id="L78">            chain.doFilter(request, response);</span>
+<span class="fc" id="L79">            return;</span>
+        }
+
+<span class="fc" id="L82">        String username = jwtUtil.extractUsername(jwt);</span>
+
+<span class="fc bfc" id="L84" title="All 4 branches covered.">        if (username != null &amp;&amp; SecurityContextHolder.getContext().getAuthentication() == null) {</span>
+            try {
+<span class="fc" id="L86">                UserDetails userDetails = userDetailsService.loadUserByUsername(username);</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                if (jwtUtil.isTokenValid(jwt, userDetails)) {</span>
+<span class="fc" id="L89">                    var authToken = new UsernamePasswordAuthenticationToken(</span>
+<span class="fc" id="L90">                            userDetails, null, userDetails.getAuthorities());</span>
+<span class="fc" id="L91">                    authToken.setDetails(</span>
+<span class="fc" id="L92">                            new WebAuthenticationDetailsSource().buildDetails(request));</span>
+<span class="fc" id="L93">                    SecurityContextHolder.getContext().setAuthentication(authToken);</span>
+<span class="fc" id="L94">                    log.debug(&quot;Successfully authenticated user '{}' for path {}&quot;, username, request.getRequestURI());</span>
+<span class="fc" id="L95">                } else {</span>
+<span class="fc" id="L96">                    log.warn(&quot;Token is invalid/expired for user '{}' on path {}&quot;, username, request.getRequestURI());</span>
+                }
+<span class="fc" id="L98">            } catch (Exception e) {</span>
+<span class="fc" id="L99">                log.error(&quot;Could not authenticate user '{}': {}&quot;, username, e.getMessage());</span>
+<span class="fc" id="L100">                SecurityContextHolder.clearContext();</span>
+<span class="fc" id="L101">            }</span>
+        }
+
+<span class="fc" id="L104">        chain.doFilter(request, response);</span>
+<span class="fc" id="L105">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

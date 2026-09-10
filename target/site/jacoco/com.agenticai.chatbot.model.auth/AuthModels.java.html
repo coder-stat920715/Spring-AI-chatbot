@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthModels.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.model.auth</a> &gt; <span class="el_source">AuthModels.java</span></div><h1>AuthModels.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.model.auth;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+import java.time.Instant;
+import java.util.Set;
+
+/**
+ * Authentication domain models — request and response records for
+ * register, login, and token refresh endpoints.
+ */
+public final class AuthModels {
+
+    private AuthModels() {}
+
+    // ── Requests ──────────────────────────────────────────────────────────
+
+    /**
+     * Login request payload.
+     *
+     * @param username The username (3–50 alphanumeric chars).
+     * @param password The password (8–100 chars).
+     */
+<span class="fc" id="L27">    public record LoginRequest(</span>
+
+            @NotBlank(message = &quot;username must not be blank&quot;)
+            @Size(min = 3, max = 50, message = &quot;username must be 3–50 characters&quot;)
+            @Pattern(regexp = &quot;^[a-zA-Z0-9_]+$&quot;,
+                    message = &quot;username may only contain letters, digits, or underscores&quot;)
+            @JsonProperty(&quot;username&quot;)
+            String username,
+
+            @NotBlank(message = &quot;password must not be blank&quot;)
+            @Size(min = 8, max = 100, message = &quot;password must be 8–100 characters&quot;)
+            @JsonProperty(&quot;password&quot;)
+            String password
+    ) {}
+
+    /**
+     * Register request payload.
+     *
+     * @param username Desired username (unique, 3–50 chars).
+     * @param password Password (min 8 chars).
+     * @param email    Valid e-mail address.
+     * @param role     Desired role: USER or ADMIN (defaults to USER if omitted).
+     */
+<span class="fc" id="L50">    public record RegisterRequest(</span>
+
+            @NotBlank(message = &quot;username must not be blank&quot;)
+            @Size(min = 3, max = 50, message = &quot;username must be 3–50 characters&quot;)
+            @Pattern(regexp = &quot;^[a-zA-Z0-9_]+$&quot;,
+                    message = &quot;username may only contain letters, digits, or underscores&quot;)
+            @JsonProperty(&quot;username&quot;)
+            String username,
+
+            @NotBlank(message = &quot;password must not be blank&quot;)
+            @Size(min = 8, max = 100, message = &quot;password must be at least 8 characters&quot;)
+            @JsonProperty(&quot;password&quot;)
+            String password,
+
+            @NotBlank(message = &quot;email must not be blank&quot;)
+            @Pattern(regexp = &quot;^[\\w.%+\\-]+@[\\w.\\-]+\\.[a-zA-Z]{2,}$&quot;,
+                    message = &quot;must be a valid email address&quot;)
+            @JsonProperty(&quot;email&quot;)
+            String email,
+
+            @JsonProperty(&quot;role&quot;)
+            String role    // &quot;USER&quot; or &quot;ADMIN&quot; — defaults to USER if null/blank
+    ) {}
+
+    /**
+     * Refresh token request.
+     */
+<span class="fc" id="L77">    public record RefreshTokenRequest(</span>
+
+            @NotBlank(message = &quot;refreshToken must not be blank&quot;)
+            @JsonProperty(&quot;refreshToken&quot;)
+            String refreshToken
+    ) {}
+
+    // ── Responses ─────────────────────────────────────────────────────────
+
+    /**
+     * Successful authentication response — returned for login and register.
+     *
+     * @param accessToken  Short-lived JWT (default 15 min).
+     * @param refreshToken Long-lived refresh JWT (default 7 days).
+     * @param tokenType    Always &quot;Bearer&quot;.
+     * @param expiresIn    Access token lifetime in seconds.
+     * @param username     The authenticated user's username.
+     * @param roles        The user's assigned roles.
+     */
+<span class="fc" id="L96">    public record AuthResponse(</span>
+            @JsonProperty(&quot;accessToken&quot;)  String      accessToken,
+            @JsonProperty(&quot;refreshToken&quot;) String      refreshToken,
+            @JsonProperty(&quot;tokenType&quot;)    String      tokenType,
+            @JsonProperty(&quot;expiresIn&quot;)    long        expiresIn,
+            @JsonProperty(&quot;username&quot;)     String      username,
+            @JsonProperty(&quot;roles&quot;)        Set&lt;String&gt; roles,
+            @JsonProperty(&quot;issuedAt&quot;)     Instant     issuedAt
+    ) {
+        public static AuthResponse of(String accessToken, String refreshToken,
+                                      long expiresInSeconds, String username,
+                                      Set&lt;String&gt; roles) {
+<span class="fc" id="L108">            return new AuthResponse(accessToken, refreshToken, &quot;Bearer&quot;,</span>
+<span class="fc" id="L109">                    expiresInSeconds, username, roles, Instant.now());</span>
+        }
+    }
+
+    /**
+     * Authenticated user detail — returned by GET /api/auth/me.
+     */
+<span class="fc" id="L116">    public record UserInfoResponse(</span>
+            @JsonProperty(&quot;username&quot;) String      username,
+            @JsonProperty(&quot;email&quot;)    String      email,
+            @JsonProperty(&quot;roles&quot;)    Set&lt;String&gt; roles,
+            @JsonProperty(&quot;active&quot;)   boolean     active
+    ) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

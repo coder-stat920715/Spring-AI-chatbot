@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.config;
+
+import com.agenticai.chatbot.security.filter.JwtAuthenticationFilter;
+import com.agenticai.chatbot.security.service.ChatbotUserDetailsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Spring Security configuration for the Spring AI Chatbot.
+ *
+ * &lt;h3&gt;Security architecture&lt;/h3&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;b&gt;Stateless&lt;/b&gt; — no HTTP sessions; JWT tokens carry all auth state.&lt;/li&gt;
+ * &lt;li&gt;&lt;b&gt;JWT filter&lt;/b&gt; — {@link JwtAuthenticationFilter} runs before every request.&lt;/li&gt;
+ * &lt;li&gt;&lt;b&gt;RBAC&lt;/b&gt; — Role-Based Access Control via {@code @PreAuthorize} and URL rules.&lt;/li&gt;
+ * &lt;li&gt;&lt;b&gt;BCrypt&lt;/b&gt; — password hashing with strength 12.&lt;/li&gt;
+ * &lt;li&gt;&lt;b&gt;CSRF disabled&lt;/b&gt; — correct for stateless REST APIs (no cookies / session).&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;h3&gt;Role hierarchy&lt;/h3&gt;
+ * &lt;pre&gt;
+ * ROLE_ADMIN  → full access (all endpoints)
+ * ROLE_USER   → access to /api/chat/** only
+ * anonymous   → access to /api/auth/**, /swagger-ui/**, /v3/api-docs/**, /actuator/health
+ * &lt;/pre&gt;
+ *
+ * &lt;h3&gt;Endpoint access rules&lt;/h3&gt;
+ * &lt;pre&gt;
+ * POST  /api/auth/login      → public
+ * POST  /api/auth/register   → public
+ * POST  /api/auth/refresh    → public
+ * GET   /api/auth/me         → ROLE_USER or ROLE_ADMIN
+ * POST  /api/chat/** → ROLE_USER or ROLE_ADMIN
+ * GET   /api/chat/health     → public (health probe)
+ * DELETE /api/chat/sessions/ → ROLE_USER or ROLE_ADMIN
+ * GET   /swagger-ui/** → public
+ * GET   /v3/api-docs/** → public
+ * GET   /actuator/health     → public
+ * everything else            → ROLE_ADMIN only
+ * &lt;/pre&gt;
+ */
+<span class="fc" id="L69">@Slf4j</span>
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)   // enables @PreAuthorize / @PostAuthorize
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter    jwtAuthFilter;
+    private final ChatbotUserDetailsService  userDetailsService;
+    private final PasswordEncoder            passwordEncoder;
+    private final ObjectMapper               objectMapper = new ObjectMapper();
+
+    // ── Public paths ──────────────────────────────────────────────────────
+
+<span class="fc" id="L83">    private static final String[] PUBLIC_GET_PATHS = {</span>
+            &quot;/swagger-ui/**&quot;,
+            &quot;/swagger-ui.html&quot;,
+            &quot;/v3/api-docs/**&quot;,
+            &quot;/v3/api-docs.yaml&quot;,
+            &quot;/actuator/health&quot;,
+            &quot;/api/chat/health&quot;,
+            &quot;/api/chat/info&quot;
+    };
+
+<span class="fc" id="L93">    private static final String[] PUBLIC_POST_PATHS = {</span>
+            &quot;/api/auth/login&quot;,
+            &quot;/api/auth/register&quot;,
+            &quot;/api/auth/refresh&quot;
+    };
+
+    // ── Security Filter Chain ─────────────────────────────────────────────
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+<span class="fc" id="L104">        http</span>
+                // ── CSRF: disabled for stateless REST (no cookies / sessions) ──
+<span class="fc" id="L106">                .csrf(AbstractHttpConfigurer::disable)</span>
+
+                // ── Session: STATELESS — JWT is the only auth mechanism ────────
+<span class="fc" id="L109">                .sessionManagement(session -&gt;</span>
+<span class="fc" id="L110">                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))</span>
+
+                // ── Authorization rules ────────────────────────────────────────
+<span class="fc" id="L113">                .authorizeHttpRequests(auth -&gt; auth</span>
+
+                        // Public GET endpoints (swagger, health, docs)
+<span class="fc" id="L116">                        .requestMatchers(HttpMethod.GET,  PUBLIC_GET_PATHS).permitAll()</span>
+
+                        // Public POST endpoints (login, register, refresh)
+<span class="fc" id="L119">                        .requestMatchers(HttpMethod.POST, PUBLIC_POST_PATHS).permitAll()</span>
+
+                        // Chat endpoints — any authenticated user (USER or ADMIN)
+<span class="fc" id="L122">                        .requestMatchers(HttpMethod.POST,   &quot;/api/chat/**&quot;).hasAnyRole(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+<span class="fc" id="L123">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/chat/sessions/**&quot;).hasAnyRole(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+
+                        // Auth info endpoint — authenticated users only
+<span class="fc" id="L126">                        .requestMatchers(HttpMethod.GET, &quot;/api/auth/me&quot;).hasAnyRole(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+
+                        // Admin-only: actuator full access, user management
+<span class="fc" id="L129">                        .requestMatchers(&quot;/actuator/**&quot;).hasRole(&quot;ADMIN&quot;)</span>
+
+                        // Everything else requires ADMIN
+<span class="fc" id="L132">                        .anyRequest().hasRole(&quot;ADMIN&quot;)</span>
+                )
+
+                // ── Custom 401 / 403 handlers ──────────────────────────────────
+<span class="fc" id="L136">                .exceptionHandling(ex -&gt; ex</span>
+<span class="fc" id="L137">                        .authenticationEntryPoint(authenticationEntryPoint())</span>
+<span class="fc" id="L138">                        .accessDeniedHandler(accessDeniedHandler()))</span>
+
+                // ── Authentication provider ────────────────────────────────────
+<span class="fc" id="L141">                .authenticationProvider(authenticationProvider())</span>
+
+                // ── JWT filter before Spring Security's default auth filter ────
+<span class="fc" id="L144">                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);</span>
+
+<span class="fc" id="L146">        log.info(&quot;SecurityFilterChain configured — JWT stateless mode, RBAC enabled&quot;);</span>
+<span class="fc" id="L147">        return http.build();</span>
+    }
+
+    // ── Beans ─────────────────────────────────────────────────────────────
+
+    /**
+     * DAO-based authentication provider — validates username/password
+     * against the {@link ChatbotUserDetailsService}.
+     */
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+<span class="fc" id="L158">        var provider = new DaoAuthenticationProvider(userDetailsService);</span>
+<span class="fc" id="L159">        provider.setPasswordEncoder(passwordEncoder);</span>
+<span class="fc" id="L160">        return provider;</span>
+    }
+
+    /**
+     * Exposes the {@link AuthenticationManager} for use in the
+     * {@link com.agenticai.chatbot.controller.AuthController}.
+     */
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) {
+<span class="fc" id="L170">        return config.getAuthenticationManager();</span>
+    }
+
+    // ── Custom error handlers ─────────────────────────────────────────────
+
+    /**
+     * 401 Unauthorized — returned when a request reaches a protected endpoint
+     * without a valid JWT (missing, expired, or malformed token).
+     */
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+<span class="fc" id="L181">        return (HttpServletRequest request,</span>
+                HttpServletResponse response,
+                AuthenticationException ex) -&gt; {
+
+<span class="fc" id="L185">            log.warn(&quot;Unauthorized access attempt on {}: {}&quot;, request.getRequestURI(), ex.getMessage());</span>
+
+<span class="fc" id="L187">            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);</span>
+<span class="fc" id="L188">            response.setContentType(MediaType.APPLICATION_JSON_VALUE);</span>
+
+<span class="fc" id="L190">            Map&lt;String, Object&gt; body = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L191">            body.put(&quot;success&quot;,   false);</span>
+<span class="fc" id="L192">            body.put(&quot;status&quot;,    401);</span>
+<span class="fc" id="L193">            body.put(&quot;message&quot;,   &quot;Unauthorized&quot;);</span>
+<span class="fc" id="L194">            body.put(&quot;error&quot;,     Map.of(&quot;code&quot;, &quot;UNAUTHORIZED&quot;,</span>
+                    &quot;detail&quot;, &quot;Missing or invalid JWT token. &quot;
+                            + &quot;Include 'Authorization: Bearer &lt;token&gt;' header.&quot;));
+<span class="fc" id="L197">            body.put(&quot;path&quot;,      request.getRequestURI());</span>
+<span class="fc" id="L198">            body.put(&quot;timestamp&quot;, Instant.now().toString());</span>
+
+<span class="fc" id="L200">            objectMapper.writeValue(response.getWriter(), body);</span>
+<span class="fc" id="L201">        };</span>
+    }
+
+    /**
+     * 403 Forbidden — returned when a valid JWT is present but the user's
+     * role is insufficient to access the endpoint.
+     */
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+<span class="fc" id="L210">        return (HttpServletRequest request,</span>
+                HttpServletResponse response,
+                org.springframework.security.access.AccessDeniedException ex) -&gt; {
+
+<span class="fc" id="L214">            log.warn(&quot;Access denied on {} for user: {}&quot;, request.getRequestURI(), ex.getMessage());</span>
+
+<span class="fc" id="L216">            response.setStatus(HttpServletResponse.SC_FORBIDDEN);</span>
+<span class="fc" id="L217">            response.setContentType(MediaType.APPLICATION_JSON_VALUE);</span>
+
+<span class="fc" id="L219">            Map&lt;String, Object&gt; body = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L220">            body.put(&quot;success&quot;,   false);</span>
+<span class="fc" id="L221">            body.put(&quot;status&quot;,    403);</span>
+<span class="fc" id="L222">            body.put(&quot;message&quot;,   &quot;Forbidden&quot;);</span>
+<span class="fc" id="L223">            body.put(&quot;error&quot;,     Map.of(&quot;code&quot;, &quot;FORBIDDEN&quot;,</span>
+                    &quot;detail&quot;, &quot;You do not have permission to access this resource.&quot;));
+<span class="fc" id="L225">            body.put(&quot;path&quot;,      request.getRequestURI());</span>
+<span class="fc" id="L226">            body.put(&quot;timestamp&quot;, Instant.now().toString());</span>
+
+<span class="fc" id="L228">            objectMapper.writeValue(response.getWriter(), body);</span>
+<span class="fc" id="L229">        };</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Spring AI Agentic Chatbot</a> &gt; <a href="index.source.html" class="el_package">com.agenticai.chatbot.controller</a> &gt; <span class="el_source">ChatController.java</span></div><h1>ChatController.java</h1><pre class="source lang-java linenums">package com.agenticai.chatbot.controller;
+
+import com.agenticai.chatbot.model.ApiResponse;
+import com.agenticai.chatbot.model.ChatModels.*;
+import com.agenticai.chatbot.service.ChatService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+
+import java.net.URI;
+
+/**
+ * REST controller for the Spring AI Agentic Chatbot.
+ *
+ * &lt;p&gt;All endpoints require JWT authentication (ROLE_USER or ROLE_ADMIN)
+ * except the health check, which is public.
+ */
+<span class="fc" id="L34">@Slf4j</span>
+@RestController
+@RequestMapping(&quot;/api/chat&quot;)
+@RequiredArgsConstructor
+@Tag(name = &quot;Chat&quot;,
+        description = &quot;Agentic AI chat endpoints — send messages to Claude with autonomous tool use. &quot;
+                + &quot;Requires JWT Bearer token with ROLE_USER or ROLE_ADMIN.&quot;)
+@SecurityRequirement(name = &quot;BearerAuth&quot;)
+public class ChatController {
+
+    private final ChatService chatService;
+
+    // ── 200 OK — Standard Chat ────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Send a message to the AI agent&quot;,
+            description = &quot;&quot;&quot;
+                Sends a user message to Claude. The model autonomously decides which tools
+                to call (if any), executes them, and returns a synthesised reply.
+                
+                Conversation history is maintained per `sessionId` using Spring AI's
+                `MessageWindowChatMemory`. Omit `sessionId` to start a new conversation.
+                
+                **Available tools:**
+                - `get_weather`     — &quot;What is the weather in Tokyo?&quot;
+                - `track_order`     — &quot;Track my order ORD-1002&quot;
+                - `calculate`       — &quot;What is 15% tip on $128.50?&quot;
+                - `get_product_info` — &quot;Tell me about PROD-001&quot;
+                &quot;&quot;&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = &quot;200&quot;,
+            description  = &quot;AI reply returned successfully&quot;,
+            content = @Content(mediaType = &quot;application/json&quot;,
+                    examples = @ExampleObject(name = &quot;weather-response&quot;, value = &quot;&quot;&quot;
+                    {
+                      &quot;success&quot;: true,
+                      &quot;status&quot;: 200,
+                      &quot;message&quot;: &quot;OK&quot;,
+                      &quot;data&quot;: {
+                        &quot;sessionId&quot;:  &quot;abc-123&quot;,
+                        &quot;reply&quot;:      &quot;The current weather in London is 15.0°C, Partly Cloudy with 65% humidity.&quot;,
+                        &quot;toolsUsed&quot;:  [&quot;get_weather&quot;],
+                        &quot;model&quot;:      &quot;claude-sonnet-4-20250514&quot;,
+                        &quot;timestamp&quot;:  &quot;2026-05-31T10:00:00Z&quot;
+                      },
+                      &quot;path&quot;:      &quot;/api/chat&quot;,
+                      &quot;timestamp&quot;: &quot;2026-05-31T10:00:00Z&quot;
+                    }
+                    &quot;&quot;&quot;)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;400&quot;,
+            description = &quot;Validation failed (blank message, message &gt; 4000 chars, etc.)&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description = &quot;Missing or invalid JWT token&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;429&quot;,
+            description = &quot;Anthropic rate limit exceeded — see Retry-After header&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;502&quot;,
+            description = &quot;Upstream Anthropic API error&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;504&quot;,
+            description = &quot;AI model response timed out&quot;)
+    @PreAuthorize(&quot;hasAnyRole('USER', 'ADMIN')&quot;)
+    @PostMapping(
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;ChatReply&gt;&gt; chat(
+            @Valid @RequestBody ChatRequest request,
+            HttpServletRequest httpReq) {
+
+<span class="fc" id="L101">        log.debug(&quot;POST /api/chat — session={}&quot;, request.sessionId());</span>
+<span class="fc" id="L102">        ChatReply reply = chatService.chat(request);</span>
+<span class="fc" id="L103">        return ResponseEntity.ok(ApiResponse.ok(reply, httpReq.getRequestURI()));</span>
+    }
+
+    // ── 200 OK SSE — Streaming Chat ───────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Stream AI reply as Server-Sent Events (SSE)&quot;,
+            description = &quot;&quot;&quot;
+                Identical to `POST /api/chat` but streams the response token-by-token
+                as SSE (`text/event-stream`). Creates a real-time typing effect in the UI.
+                
+                Each SSE event contains a plain-text token in the `data:` field.
+                The stream ends when the model finishes generating.
+                &quot;&quot;&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;200&quot;,
+            description  = &quot;SSE stream started (tokens arrive asynchronously)&quot;,
+            content = @Content(mediaType = &quot;text/event-stream&quot;,
+                    examples = @ExampleObject(value = &quot;data: The\ndata:  weather\ndata:  in London\ndata:  is 15°C.&quot;)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description  = &quot;Missing or invalid JWT token&quot;)
+    @PreAuthorize(&quot;hasAnyRole('USER', 'ADMIN')&quot;)
+    @PostMapping(
+            value    = &quot;/stream&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux&lt;String&gt; stream(@Valid @RequestBody ChatRequest request) {
+<span class="fc" id="L129">        log.debug(&quot;POST /api/chat/stream — session={}&quot;, request.sessionId());</span>
+<span class="fc" id="L130">        return chatService.stream(request);</span>
+    }
+
+    // ── 200 OK — Health ───────────────────────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Health check&quot;,
+            description = &quot;Returns application status. **Public endpoint — no JWT required.**&quot;,
+            security    = {}    // override global security requirement — public
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;200&quot;,
+            description = &quot;Application is UP&quot;,
+            content = @Content(mediaType = &quot;application/json&quot;,
+                    examples = @ExampleObject(value = &quot;&quot;&quot;
+                    {
+                      &quot;success&quot;: true,
+                      &quot;status&quot;: 200,
+                      &quot;data&quot;: { &quot;status&quot;: &quot;UP&quot;, &quot;service&quot;: &quot;spring-ai-chatbot&quot;, &quot;version&quot;: &quot;1.0.0&quot; }
+                    }
+                    &quot;&quot;&quot;)))
+    @GetMapping(value = &quot;/health&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;ApiResponse&lt;HealthResponse&gt;&gt; health(HttpServletRequest httpReq) {
+<span class="fc" id="L152">        return ResponseEntity.ok(ApiResponse.ok(HealthResponse.up(), httpReq.getRequestURI()));</span>
+    }
+
+    // ── 204 No Content — Clear Session ───────────────────────────────────
+
+    @Operation(
+            summary     = &quot;Clear conversation history for a session&quot;,
+            description = &quot;Deletes all stored messages for the given `sessionId`. Returns 204 with empty body.&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;204&quot;,
+            description = &quot;Session history cleared — empty body&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;400&quot;,
+            description = &quot;Invalid sessionId format&quot;)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;401&quot;,
+            description = &quot;Not authenticated&quot;)
+    @PreAuthorize(&quot;hasAnyRole('USER', 'ADMIN')&quot;)
+    @DeleteMapping(value = &quot;/sessions/{sessionId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Void&gt; clearSession(
+            @Parameter(description = &quot;Session ID to clear (alphanumeric with hyphens)&quot;, example = &quot;abc-123&quot;)
+            @PathVariable
+            @NotBlank
+            @Pattern(regexp = &quot;^[a-zA-Z0-9\\-]+$&quot;)
+            String sessionId,
+            HttpServletRequest httpReq) {
+
+<span class="fc" id="L176">        log.info(&quot;DELETE /api/chat/sessions/{}&quot;, sessionId);</span>
+<span class="fc" id="L177">        chatService.clearSession(sessionId);</span>
+<span class="fc" id="L178">        return ResponseEntity.noContent().build();</span>
+    }
+
+    // ── 301 Redirect ──────────────────────────────────────────────────────
+
+    @Operation(
+            summary  = &quot;Redirect to health&quot;,
+            description = &quot;Permanently redirects bare GET /api/chat to /api/chat/health.&quot;,
+            security = {}
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;301&quot;,
+            description = &quot;Moved Permanently → /api/chat/health&quot;)
+    @GetMapping(produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity&lt;Void&gt; redirectToHealth() {
+<span class="fc" id="L192">        return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)</span>
+<span class="fc" id="L193">                .location(URI.create(&quot;/api/chat/health&quot;))</span>
+<span class="fc" id="L194">                .build();</span>
+    }
+
+    // ── 302 Redirect ──────────────────────────────────────────────────────
+
+    @Operation(summary = &quot;Temporary redirect for /info path&quot;, security = {})
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = &quot;302&quot;,
+            description = &quot;Found → /api/chat/health&quot;)
+    @GetMapping(value = &quot;/info&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Void&gt; redirectInfo() {
+<span class="fc" id="L204">        return ResponseEntity.status(HttpStatus.FOUND)</span>
+<span class="fc" id="L205">                .location(URI.create(&quot;/api/chat/health&quot;))</span>
+<span class="fc" id="L206">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
